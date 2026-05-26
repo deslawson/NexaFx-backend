@@ -48,6 +48,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
+      - name: Log environment
+        run: node --version && npm --version
+
       - name: Install dependencies
         run: npm ci
 

@@ -18,6 +18,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
 import { VerifySignupOtpDto } from './dto/verify-signup-otp.dto';
 import { VerifySignupResponseDto } from './dto/signup-response.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Throttle } from '@nestjs/throttler';
 // import { ConfigService } from '@nestjs/config';
 
@@ -160,15 +161,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        refreshToken: { type: 'string' },
-      },
-      required: ['refreshToken'],
-    },
-  })
+  @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
     status: 200,
     description: 'New access token issued',
@@ -181,8 +174,8 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refreshToken(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refreshAccessToken(refreshToken);
+  async refreshToken(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshAccessToken(dto.refreshToken);
   }
 
   @Public()

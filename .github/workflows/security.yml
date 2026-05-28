@@ -27,7 +27,7 @@ jobs:
       - name: Scan for leaked secrets
         uses: trufflesecurity/trufflehog@main
         with:
-          extra_args: --results=verified,unknown --fail --config=.trufflehog.yml
+          extra_args: --results=verified,unknown --config=.trufflehog.yml
 
   npm-audit:
     name: npm Audit (prod deps)

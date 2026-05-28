@@ -21,6 +21,9 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
+      // Do not expose the validated object or its values in error responses —
+      // prevents leaking sensitive fields (passwords, tokens) back to the client.
+      validationError: { target: false, value: false },
     }),
   );
 

@@ -26,7 +26,7 @@ describe('OtpsService - Brute Force Lockout', () => {
 
   const hashOtp = (userId: string, type: OtpType, otp: string): string =>
     crypto
-      .createHmac('sha256', 'test-secret-key')
+      .createHmac('sha256', process.env.OTP_SECRET ?? 'test-secret-key')
       .update(`${userId}:${type}:${otp}`)
       .digest('hex');
 
@@ -41,7 +41,7 @@ describe('OtpsService - Brute Force Lockout', () => {
     mockConfigService = {
       get: jest.fn().mockImplementation((key: string) => {
         const config: Record<string, string> = {
-          OTP_SECRET: 'test-secret-key',
+          OTP_SECRET: process.env.OTP_SECRET ?? 'test-secret-key',
           OTP_EXPIRES_MINUTES: '10',
           AUTH_LOCKOUT_DURATION_MINUTES: '15',
         };
@@ -190,7 +190,7 @@ describe('OtpsService - Brute Force Lockout', () => {
     it('should use AUTH_LOCKOUT_DURATION_MINUTES from config', async () => {
       mockConfigService.get = jest.fn().mockImplementation((key: string) => {
         const config: Record<string, string> = {
-          OTP_SECRET: 'test-secret-key',
+          OTP_SECRET: process.env.OTP_SECRET ?? 'test-secret-key',
           OTP_EXPIRES_MINUTES: '10',
           AUTH_LOCKOUT_DURATION_MINUTES: '30',
         };

@@ -212,8 +212,14 @@ export class DataExportService {
     data: ExportData,
   ): Promise<string> {
     const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
-    const zipFileName = `nexafx-export_${userId}_${timestamp}.zip`;
+    // Sanitise userId to only alphanumeric/hyphen chars to prevent path traversal
+    const safeUserId = userId.replace(/[^a-zA-Z0-9-]/g, '');
+    const zipFileName = `nexafx-export_${safeUserId}_${timestamp}.zip`;
     const zipFilePath = path.join(this.EXPORT_DIR, zipFileName);
+    // Guard: ensure the resolved path stays inside EXPORT_DIR
+    if (!zipFilePath.startsWith(this.EXPORT_DIR + path.sep) && zipFilePath !== this.EXPORT_DIR) {
+      throw new Error('Invalid export path detected');
+    }
 
     const output = createWriteStream(zipFilePath);
     const archive = archiver('zip', { zlib: { level: 9 } });

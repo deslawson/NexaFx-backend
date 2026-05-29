@@ -47,7 +47,8 @@ export class AuditInterceptor implements NestInterceptor {
             userAgent,
             metadata: {
               method: request.method,
-              url: request.url,
+              // Encode the URL to neutralise any embedded HTML/script before storing
+              url: encodeURI(String(request.url ?? '')),
               statusCode: context.switchToHttp().getResponse().statusCode,
               body: this.sanitizeBody(request.body),
             },

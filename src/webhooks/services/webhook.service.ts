@@ -1,10 +1,14 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, IsNull, Or } from 'typeorm';
+import { Repository, LessThan, IsNull } from 'typeorm';
 import { WebhookEndpoint } from '../entities/webhook-endpoint.entity';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity';
 import * as crypto from 'crypto';
 import axios from 'axios';
+import { URL } from 'url';
+
+// Private IP ranges that must never be targeted by outbound webhook requests
+const BLOCKED_HOSTNAMES = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|0\.0\.0\.0)/i;
 
 @Injectable()
 export class WebhookService {
@@ -19,14 +23,27 @@ export class WebhookService {
     private readonly deliveryRepo: Repository<WebhookDelivery>,
   ) {}
 
+  private validateWebhookUrl(raw: string): void {
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      throw new BadRequestException('Webhook URL is not a valid URL');
+    }
+    if (parsed.protocol !== 'https:') {
+      throw new BadRequestException('Webhook URL must use HTTPS');
+    }
+    if (BLOCKED_HOSTNAMES.test(parsed.hostname)) {
+      throw new BadRequestException('Webhook URL targets a disallowed host');
+    }
+  }
+
   async createEndpoint(
     userId: string,
     url: string,
     events: string[],
   ): Promise<WebhookEndpoint> {
-    if (!url.startsWith('https://')) {
-      throw new BadRequestException('Webhook URL must use HTTPS');
-    }
+    this.validateWebhookUrl(url);
 
     const endpoint = this.endpointRepo.create({
       userId,
@@ -83,6 +100,9 @@ export class WebhookService {
     delivery.attemptCount++;
 
     try {
+      // Re-validate stored URL before each delivery to guard against DB tampering
+      this.validateWebhookUrl(endpoint.url);
+
       const response = await axios.post(endpoint.url, delivery.payload, {
         headers: {
           'Content-Type': 'application/json',
@@ -90,6 +110,7 @@ export class WebhookService {
           'User-Agent': 'NexaFX-Webhook/1.0',
         },
         timeout: 10000,
+        maxRedirects: 0, // prevent redirect-based SSRF
       });
 
       delivery.responseStatus = response.status;

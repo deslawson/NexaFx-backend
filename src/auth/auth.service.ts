@@ -492,6 +492,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        name: `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
         phone: user.phone,
         isVerified: true,
         role: user.role,
@@ -634,7 +635,7 @@ export class AuthService {
 
   async issueFullAccessToken(
     userId: string,
-  ): Promise<{ accessToken: string; expiresIn: number }> {
+  ): Promise<ReturnType<AuthService['issueAuthTokens']>> {
     const user = await this.usersService.findById(userId);
     if (!user || !user.isVerified) {
       throw new UnauthorizedException('Invalid credentials');
@@ -659,10 +660,21 @@ export class AuthService {
   }
 
   private async issueAuthTokens(userId: string, email: string, role: string) {
+    const user = await this.usersService.findById(userId);
     const payload = { sub: userId, email, role };
     return {
       accessToken: this.jwtService.sign(payload),
+      refreshToken: await this.refreshTokensService.createRefreshToken(userId),
       expiresIn: this.getAccessTokenExpirySeconds(),
+      user: {
+        id: userId,
+        email,
+        firstName: user?.firstName ?? null,
+        lastName: user?.lastName ?? null,
+        name: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
+        role,
+        walletPublicKey: user?.walletPublicKey ?? null,
+      },
     };
   }
 }

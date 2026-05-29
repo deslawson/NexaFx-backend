@@ -168,7 +168,7 @@ describe('SuperAdminService', () => {
 
     const result = await service.createAdmin(superAdminUser.id, {
       email: adminUser.email,
-      password: 'P@ssword123',
+      password: process.env.TEST_ADMIN_PASSWORD ?? 'P@ssword123',
     });
 
     expect(result.role).toBe(UserRole.ADMIN);

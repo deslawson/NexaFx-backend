@@ -312,6 +312,27 @@ export class ReceiptsService {
   }
 
   /**
+   * Escape a string for safe inclusion in HTML content.
+   * Prevents XSS when user-controlled values are embedded in email HTML.
+   */
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
+  /**
+   * Validate a Stellar transaction hash (64 hex chars) before embedding in URLs.
+   * Rejects any value that does not match to prevent SSRF / open-redirect.
+   */
+  private isSafeTxHash(hash: string): boolean {
+    return /^[0-9a-fA-F]{64}$/.test(hash);
+  }
+
+  /**
    * Send receipt email with PDF attachment using Mailgun
    */
   private async sendReceiptEmail(
@@ -353,6 +374,25 @@ export class ReceiptsService {
         },
       );
 
+      // Sanitise all user-controlled values before embedding in HTML
+      const safeRef = this.escapeHtml(referenceNumber);
+      const safeType = this.escapeHtml(transaction.type);
+      const safeAmount = this.escapeHtml(String(transaction.amount));
+      const safeCurrency = this.escapeHtml(transaction.currency);
+      const safeDate = this.escapeHtml(transactionDate);
+      const safeStatus = this.escapeHtml(transaction.status);
+      const statusColor =
+        transaction.status === 'SUCCESS'
+          ? '#27ae60'
+          : transaction.status === 'FAILED'
+            ? '#e74c3c'
+            : '#f39c12';
+      // Only embed txHash in a URL if it passes strict hex validation (SSRF guard)
+      const safeTxHash =
+        transaction.txHash && this.isSafeTxHash(transaction.txHash)
+          ? transaction.txHash
+          : null;
+
       const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; background: #ffffff;">
           <div style="background: #F5A623; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
@@ -366,29 +406,29 @@ export class ReceiptsService {
             
             <div style="background: #FFF8E7; border: 2px solid #F5A623; border-radius: 12px; padding: 20px; margin: 24px 0;">
               <p style="margin: 0 0 8px; font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Reference Number</p>
-              <p style="margin: 0; font-size: 18px; font-weight: 700; color: #1A1A1A;">${referenceNumber}</p>
+              <p style="margin: 0; font-size: 18px; font-weight: 700; color: #1A1A1A;">${safeRef}</p>
               
               <p style="margin: 16px 0 8px; font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Transaction Type</p>
-              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${transaction.type}</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${safeType}</p>
               
               <p style="margin: 16px 0 8px; font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Amount</p>
-              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${transaction.amount} ${transaction.currency}</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${safeAmount} ${safeCurrency}</p>
               
               <p style="margin: 16px 0 8px; font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Date</p>
-              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${transactionDate}</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1A1A1A;">${safeDate}</p>
               
               <p style="margin: 16px 0 8px; font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Status</p>
-              <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${transaction.status === 'SUCCESS' ? '#27ae60' : transaction.status === 'FAILED' ? '#e74c3c' : '#f39c12'};">${transaction.status}</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${statusColor};">${safeStatus}</p>
             </div>
 
             ${
-              transaction.txHash
+              safeTxHash
                 ? `
             <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
               <p style="margin: 0 0 8px; font-size: 12px; color: #666;">Stellar Transaction Hash</p>
-              <p style="margin: 0; font-size: 12px; font-family: monospace; word-break: break-all; color: #1A1A1A;">${transaction.txHash}</p>
+              <p style="margin: 0; font-size: 12px; font-family: monospace; word-break: break-all; color: #1A1A1A;">${safeTxHash}</p>
               <p style="margin: 8px 0 0; font-size: 12px;">
-                <a href="https://stellar.expert/explorer/testnet/tx/${transaction.txHash}" style="color: #F5A623; text-decoration: none;">View on Stellar Explorer →</a>
+                <a href="https://stellar.expert/explorer/testnet/tx/${safeTxHash}" style="color: #F5A623; text-decoration: none;">View on Stellar Explorer &rarr;</a>
               </p>
             </div>
             `
@@ -399,7 +439,7 @@ export class ReceiptsService {
               If you have any questions about this transaction, please contact our support team at support@nexafx.com
             </p>
             <p style="font-size: 12px; color: #ccc; text-align: center;">
-              © ${new Date().getFullYear()} NexaFX. All rights reserved.
+              &copy; ${new Date().getFullYear()} NexaFX. All rights reserved.
             </p>
           </div>
         </div>
@@ -416,7 +456,7 @@ Transaction Details:
 - Amount: ${transaction.amount} ${transaction.currency}
 - Date: ${transactionDate}
 - Status: ${transaction.status}
-${transaction.txHash ? `- Stellar Transaction Hash: ${transaction.txHash}\n- Explorer Link: https://stellar.expert/explorer/testnet/tx/${transaction.txHash}` : ''}
+${safeTxHash ? `- Stellar Transaction Hash: ${safeTxHash}\n- Explorer Link: https://stellar.expert/explorer/testnet/tx/${safeTxHash}` : ''}
 
 If you have any questions about this transaction, please contact our support team at support@nexafx.com
 

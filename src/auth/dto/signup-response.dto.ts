@@ -14,6 +14,14 @@ export class SignupUserResponseDto {
   @ApiPropertyOptional({ example: 'Doe', nullable: true })
   lastName: string | null;
 
+  /**
+   * Computed full name: `firstName + ' ' + lastName` (trimmed).
+   * Provided for frontend convenience so consumers do not need to
+   * concatenate the individual fields themselves.
+   */
+  @ApiProperty({ example: 'John Doe', description: 'Computed full name (firstName + lastName)' })
+  name: string;
+
   @ApiPropertyOptional({ example: '+2348012345678', nullable: true })
   phone: string | null;
 

@@ -28,7 +28,7 @@ describe('RatesGateway', () => {
     emit: jest.fn(),
     handshake: {
       headers: {
-        authorization: 'Bearer token',
+        authorization: `Bearer ${process.env.TEST_JWT_TOKEN ?? 'test-token'}`,
       },
     },
   };

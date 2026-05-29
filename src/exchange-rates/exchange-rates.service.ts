@@ -1,5 +1,5 @@
 import {
-  BadGatewayException,
+  ServiceUnavailableException,
   BadRequestException,
   Injectable,
   Logger,
@@ -89,10 +89,10 @@ export class ExchangeRatesService {
       );
 
       if (error instanceof ExchangeRatesProviderError) {
-        throw new BadGatewayException(error.message);
+        throw new ServiceUnavailableException(error.message);
       }
 
-      throw new BadGatewayException('Failed to fetch exchange rate');
+      throw new ServiceUnavailableException('Failed to fetch exchange rate');
     }
   }
 

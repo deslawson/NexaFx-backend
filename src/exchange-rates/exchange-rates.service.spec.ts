@@ -1,5 +1,5 @@
 import {
-  BadGatewayException,
+  ServiceUnavailableException,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
@@ -119,14 +119,14 @@ describe('ExchangeRatesService', () => {
       expect(providerClient.fetchRate).toHaveBeenCalledTimes(2);
     });
 
-    it('should map provider errors to BadGatewayException', async () => {
+    it('should map provider errors to ServiceUnavailableException', async () => {
       mockCurrenciesService.validateCurrency.mockResolvedValue(undefined);
       mockProviderClient.fetchRate.mockRejectedValue(
         new ExchangeRatesProviderError('Provider down'),
       );
 
       await expect(service.getRate('NGN', 'USD')).rejects.toBeInstanceOf(
-        BadGatewayException,
+        ServiceUnavailableException,
       );
     });
 

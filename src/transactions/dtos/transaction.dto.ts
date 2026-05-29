@@ -14,6 +14,20 @@ import {
   TransactionType,
 } from '../entities/transaction.entity';
 
+/**
+ * Payload for POST /transactions/deposit.
+ *
+ * **Frontend contract** (lib/api/transactions.ts):
+ * All three fields below must be sent. `sourceAddress` is the user’s Stellar
+ * public key — read it from `GET /users/profile` → `walletAddress`. Omitting
+ * it will cause the backend to return a 400 with the message
+ * "sourceAddress should not be empty".
+ *
+ * Example request body:
+ * ```json
+ * { "amount": 100.5, "currency": "XLM", "sourceAddress": "GDQP2K..." }
+ * ```
+ */
 export class CreateDepositDto {
   @ApiProperty({
     example: 100.5,
@@ -30,9 +44,16 @@ export class CreateDepositDto {
   @IsNotEmpty()
   currency: string;
 
+  /**
+   * The user’s Stellar public key (G…).
+   * **Required.** Obtain from `GET /users/profile` → `walletAddress`.
+   * The backend uses this as the transaction source account on the Stellar
+   * network; the request will be rejected with 400 if this field is absent.
+   */
   @ApiProperty({
     example: 'GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOUJ3UHMNGUAO7UP',
-    description: 'Stellar source address for the deposit',
+    description:
+      "User’s Stellar public key (G…). Required. Read from GET /users/profile → walletAddress.",
   })
   @IsString()
   @IsNotEmpty()

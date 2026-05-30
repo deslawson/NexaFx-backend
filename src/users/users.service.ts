@@ -20,6 +20,7 @@ import { WalletBalanceResult } from '../blockchain/stellar/stellar.types';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { RateLimitConfig } from './rate-limit-config.entity';
 import { ThrottlerStorageService } from '@nestjs/throttler';
+import { NotificationPreferenceService } from '../notifications/services/notification-preference.service';
 
 interface WalletBalancesCacheEntry {
   expiresAt: number;
@@ -43,6 +44,7 @@ export class UsersService {
     private readonly stellarService: StellarService,
     private readonly exchangeRatesService: ExchangeRatesService,
     private readonly throttlerStorageService: ThrottlerStorageService,
+    private readonly notificationPreferenceService: NotificationPreferenceService,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
@@ -126,6 +128,7 @@ export class UsersService {
     });
 
     const savedUser = await this.userRepository.save(user);
+    await this.notificationPreferenceService.createDefaults(savedUser.id);
 
     const {
       password: _,

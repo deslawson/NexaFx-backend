@@ -17,6 +17,8 @@ import {
   PaginatedNotificationResponse,
 } from './dto/notification-response.dto';
 import { InjectRepository } from '@nestjs/typeorm';
+import { NotificationPreferenceService } from './services/notification-preference.service';
+import { NotificationDigestMode } from './entities/notification-preference.entity';
 
 @Injectable()
 export class NotificationsService {
@@ -25,14 +27,39 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private notificationsRepository: Repository<Notification>,
+    private readonly preferenceService: NotificationPreferenceService,
   ) {}
 
   async create(
     createNotificationDto: CreateNotificationDto,
-  ): Promise<NotificationResponseDto> {
+  ): Promise<NotificationResponseDto | null> {
     try {
+      const preference = await this.preferenceService.getPreference(
+        createNotificationDto.userId,
+        createNotificationDto.type,
+      );
+
+      if (
+        !(await this.preferenceService.isChannelEnabled(
+          createNotificationDto.userId,
+          createNotificationDto.type,
+          'inApp',
+        ))
+      ) {
+        return null;
+      }
+
       const notification = this.notificationsRepository.create(
-        createNotificationDto,
+        preference.digestMode === NotificationDigestMode.IMMEDIATE
+          ? createNotificationDto
+          : {
+              ...createNotificationDto,
+              metadata: {
+                ...(createNotificationDto.metadata ?? {}),
+                digestMode: preference.digestMode,
+                digestPending: true,
+              },
+            },
       );
       const saved = await this.notificationsRepository.save(notification);
       return this.mapToResponseDto(saved);
@@ -202,6 +229,18 @@ export class NotificationsService {
   async deleteAllByUser(userId: string): Promise<{ deleted: number }> {
     const result = await this.notificationsRepository.delete({ userId });
     return { deleted: result.affected || 0 };
+  }
+
+  async canSendChannel(
+    userId: string,
+    type: NotificationType,
+    channel: 'email' | 'push' | 'inApp',
+  ): Promise<boolean> {
+    return this.preferenceService.isChannelEnabled(userId, type, channel);
+  }
+
+  generateUnsubscribeToken(userId: string, type: NotificationType): string {
+    return this.preferenceService.generateUnsubscribeToken(userId, type);
   }
 
   async findByType(

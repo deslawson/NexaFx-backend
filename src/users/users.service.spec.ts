@@ -7,6 +7,7 @@ import { User, UserRole, UserPlan } from './user.entity';
 import { RateLimitConfig } from './rate-limit-config.entity';
 import { StellarService } from '../blockchain/stellar/stellar.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { NotificationPreferenceService } from '../notifications/services/notification-preference.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -80,6 +81,12 @@ describe('UsersService', () => {
             getRecord: jest.fn(),
             addRecord: jest.fn(),
             increment: jest.fn(),
+          },
+        },
+        {
+          provide: NotificationPreferenceService,
+          useValue: {
+            createDefaults: jest.fn(),
           },
         },
       ],

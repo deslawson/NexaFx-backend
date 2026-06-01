@@ -1,9 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, HttpStatus } from '@nestjs/common';
+import { INestApplication, ValidationPipe, HttpStatus, VersioningType, UnauthorizedException } from '@nestjs/common';
 import * as request from 'supertest';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { AppModule } from '../app.module';
 
 describe('AuthController (validation & responses)', () => {
   let app: INestApplication;
@@ -14,11 +13,9 @@ describe('AuthController (validation & responses)', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(AuthService)
-      .useValue(mockAuthService)
-      .compile();
+      controllers: [AuthController],
+      providers: [{ provide: AuthService, useValue: mockAuthService }],
+    }).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
@@ -29,6 +26,7 @@ describe('AuthController (validation & responses)', () => {
         transformOptions: { enableImplicitConversion: true },
       }),
     );
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     await app.init();
   });
 
@@ -45,9 +43,7 @@ describe('AuthController (validation & responses)', () => {
 
   it('returns 401 when AuthService throws UnauthorizedException', () => {
     mockAuthService.refreshAccessToken.mockImplementationOnce(() => {
-      const err: any = new Error('Unauthorized');
-      err.status = HttpStatus.UNAUTHORIZED;
-      throw err;
+      throw new UnauthorizedException();
     });
 
     return request(app.getHttpServer())

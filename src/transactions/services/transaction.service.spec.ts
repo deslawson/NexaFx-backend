@@ -235,6 +235,24 @@ describe('TransactionsService fee integration behavior', () => {
     );
   });
 
+  it('throws BadRequestException when neither destinationAddress nor beneficiaryId is provided', async () => {
+    await expect(
+      service.createWithdrawal('user-1', {
+        amount: 100,
+        currency: 'XLM',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.createWithdrawal('user-1', {
+        amount: 100,
+        currency: 'XLM',
+      }),
+    ).rejects.toThrow(
+      'Either destinationAddress or a valid beneficiaryId must be provided.',
+    );
+  });
+
   it('continues deposit when calculateFee returns zero fee', async () => {
     feesService.calculateFee.mockResolvedValueOnce({
       feeAmount: 0,

@@ -53,7 +53,7 @@ export class CreateDepositDto {
   @ApiProperty({
     example: 'GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOUJ3UHMNGUAO7UP',
     description:
-      "User’s Stellar public key (G…). Required. Read from GET /users/profile → walletAddress.",
+      'User’s Stellar public key (G…). Required. Read from GET /users/profile → walletAddress.',
   })
   @IsString()
   @IsNotEmpty()
@@ -62,13 +62,36 @@ export class CreateDepositDto {
   @ApiPropertyOptional({
     description:
       'Optional wallet to credit. When omitted, the user’s default wallet is used.',
-    format: 'uuid',
   })
   @IsOptional()
   @IsUUID()
   walletId?: string;
 }
 
+/**
+ * Payload for POST /transactions/withdraw.
+ *
+ * **Frontend contract** (lib/api/transactions.ts):
+ * You must provide EITHER `destinationAddress` OR `beneficiaryId`.
+ * - `destinationAddress`: The recipient's Stellar public key (G...) or fiat destination.
+ *   Use this for one-time withdrawals to an address not saved as a beneficiary.
+ * - `beneficiaryId`: UUID of a saved beneficiary. The backend will use the
+ *   beneficiary's `walletAddress` as the destination and update `lastUsedAt` on success.
+ *
+ * If both are provided, `beneficiaryId` takes precedence.
+ * If neither is provided, the request will be rejected with a 400 error:
+ * "Either destinationAddress or a valid beneficiaryId must be provided."
+ *
+ * Example request body (with destinationAddress):
+ * ```json
+ * { "amount": 50.25, "currency": "XLM", "destinationAddress": "GDQP2K..." }
+ * ```
+ *
+ * Example request body (with beneficiaryId):
+ * ```json
+ * { "amount": 50.25, "currency": "XLM", "beneficiaryId": "a1b2c3d4-..." }
+ * ```
+ */
 export class CreateWithdrawalDto {
   @ApiProperty({
     example: 50.25,
@@ -88,8 +111,9 @@ export class CreateWithdrawalDto {
   @ApiPropertyOptional({
     example: 'GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOUJ3UHMNGUAO7UP',
     description:
-      'Stellar destination address. Optional when beneficiaryId is provided — ' +
-      'if both are given, beneficiaryId takes precedence.',
+      "The recipient's Stellar public key (G...) or fiat destination address. " +
+      'Optional when beneficiaryId is provided - if both are given, beneficiaryId takes precedence. ' +
+      'At least one of destinationAddress or beneficiaryId must be provided.',
   })
   @IsString()
   @IsOptional()
@@ -98,7 +122,8 @@ export class CreateWithdrawalDto {
   @ApiPropertyOptional({
     description:
       "ID of a saved beneficiary. If provided, the beneficiary's walletAddress " +
-      'is used as the destination and lastUsedAt is updated on success.',
+      'is used as the destination and lastUsedAt is updated on success. ' +
+      'At least one of destinationAddress or beneficiaryId must be provided.',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   })
   @IsUUID()
@@ -108,7 +133,6 @@ export class CreateWithdrawalDto {
   @ApiPropertyOptional({
     description:
       'Optional wallet to withdraw from. When omitted, the user’s default wallet is used.',
-    format: 'uuid',
   })
   @IsOptional()
   @IsUUID()
@@ -206,7 +230,6 @@ export class CreateSwapDto {
     description:
       'Optional wallet to use for the swap. When omitted, the user’s default wallet is used. ' +
       'sourceAddress must match the selected wallet’s public key.',
-    format: 'uuid',
   })
   @IsOptional()
   @IsUUID()

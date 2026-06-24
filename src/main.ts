@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ClassSerializerInterceptor,
@@ -16,7 +16,6 @@ import { MulterExceptionFilter } from './common/filters/multer-exception.filter'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import helmet from 'helmet';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

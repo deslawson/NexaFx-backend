@@ -46,6 +46,7 @@ import { join } from 'path';
 import { AdminAuditLogsQueryDto } from './dto/admin-audit-logs-query.dto';
 import { AdminAuditLogsExportQueryDto } from './dto/admin-audit-logs-export-query.dto';
 import { UserKycTier } from '../users/user.entity';
+import { RedisService } from '../common/services/redis.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -56,7 +57,8 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly kycService: KycService,
-  ) {}
+    private readonly redisService: RedisService,
+  ) { }
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get platform metrics (Admin only)' })
@@ -343,9 +345,18 @@ export class AdminController {
 
   @Get('stats')
   @ApiOperation({ summary: 'Get platform stats (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Stats retrieved successfully' })
+  @ApiResponse({ status: 200, description: 'Returns platform statistics' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   async getStats() {
-    return this.adminService.getStats();
+    const cacheKey = 'admin_stats';
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const stats = await this.adminService.getPlatformMetrics({});
+    await this.redisService.set(cacheKey, stats, 300); // 5m TTL
+    return stats;
   }
 
   @Get('audit-logs')

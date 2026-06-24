@@ -68,6 +68,7 @@ import { StorageModule } from './modules/storage/storage.module';
             ? { rejectUnauthorized: false }
             : false,
         autoLoadEntities: true,
+        logging: configService.get<string>('NODE_ENV') === 'development',
       }),
     }),
     ThrottlerModule.forRootAsync({

@@ -25,7 +25,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
 import { VerifySignupOtpDto } from './dto/verify-signup-otp.dto';
 import { VerifySignupResponseDto } from './dto/signup-response.dto';
-import { AuthUserResponseDto, VerifyLoginOtpResponseDto } from './dto/signup-response.dto';
+import {
+  AuthUserResponseDto,
+  VerifyLoginOtpResponseDto,
+} from './dto/signup-response.dto';
 import { VerifyTwoFactorDto } from './dto/verify-2fa.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -62,7 +65,7 @@ export class AuthService {
     const genericMessage =
       'If an account exists with this email, an OTP has been sent.';
 
-    if (!user || !user.isVerified) {
+    if (!user || !user.isVerified || !user.isActive) {
       await this.simulateProcessingDelay();
 
       // Log failed login attempt
@@ -128,7 +131,7 @@ export class AuthService {
     userAgent?: string,
   ): Promise<any> {
     const user = await this.usersService.findByEmail(verifyDto.email);
-    if (!user || !user.isVerified) {
+    if (!user || !user.isVerified || !user.isActive) {
       // Log failed OTP verification
       await this.auditLogsService.logAuthEvent(
         undefined,
@@ -341,7 +344,7 @@ export class AuthService {
       await this.refreshTokensService.validateRefreshToken(refreshToken);
     const user = await this.usersService.findById(tokenEntity.userId);
 
-    if (!user || !user.isVerified) {
+    if (!user || !user.isVerified || !user.isActive) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
@@ -660,7 +663,11 @@ export class AuthService {
     return decoded.sub;
   }
 
-  private async issueAuthTokens(userId: string, email: string, role: string): Promise<VerifyLoginOtpResponseDto> {
+  private async issueAuthTokens(
+    userId: string,
+    email: string,
+    role: string,
+  ): Promise<VerifyLoginOtpResponseDto> {
     const user = await this.usersService.findById(userId);
     const payload = { sub: userId, email, role };
     const authUser: AuthUserResponseDto = {

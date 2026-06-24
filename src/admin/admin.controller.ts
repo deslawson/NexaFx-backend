@@ -9,6 +9,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,8 +18,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
+import { KycService } from '../kyc/kyc.service';
+import { KycStatus } from '../kyc/entities/kyc.entity';
+import { RejectKycDto } from '../kyc/dtos/kyc-reject';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -45,7 +50,10 @@ import { UserKycTier } from '../users/user.entity';
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly kycService: KycService,
+  ) {}
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get platform metrics (Admin only)' })
@@ -284,6 +292,8 @@ export class AdminController {
     return this.adminService.patchTransactionLimit(tier, dto);
   }
 
+  // ── KYC File Serving (must be before kyc/:id to avoid route conflict) ──
+
   @Get('kyc-file/:userId/:version/:filename')
   @ApiOperation({ summary: 'Serve KYC uploaded file (Admin only)' })
   @ApiParam({ name: 'userId', type: String })
@@ -324,5 +334,135 @@ export class AdminController {
         typedRes.status(404).send({ message: 'File not found' });
       }
     });
+  }
+
+  // ── KYC Admin Endpoints ──────────────────────────────────────────────
+
+  @Get('kyc')
+  @ApiOperation({
+    summary: 'Get KYC submission queue (Admin only)',
+    description: 'Paginated list of KYC submissions, filterable by status.',
+  })
+  @ApiQuery({
+    name: 'status',
+    enum: KycStatus,
+    required: false,
+    description: 'Filter by KYC status',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 20)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC queue retrieved successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  async getKycQueue(
+    @Query('status') status?: KycStatus,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    // Validate status is a valid KycStatus if provided
+    if (status && !Object.values(KycStatus).includes(status)) {
+      throw new BadRequestException(`Invalid status: ${status}`);
+    }
+    return this.kycService.getKycQueue(status, Number(page), Number(limit));
+  }
+
+  @Get('kyc/:id')
+  @ApiOperation({
+    summary: 'Review a single KYC submission (Admin only)',
+    description:
+      'Get full details of a KYC submission including document URLs.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'KYC record ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC submission details retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'KYC record not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  async getKycById(@Param('id') id: string) {
+    return this.kycService.getKycById(id);
+  }
+
+  @Patch('kyc/:id/approve')
+  @ApiOperation({
+    summary: 'Approve a KYC submission (Admin only)',
+    description:
+      'Sets KYC status to APPROVED, updates user tier, sends approval email and notification.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'KYC record ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC approved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'KYC already reviewed or not pending',
+  })
+  @ApiResponse({ status: 404, description: 'KYC record not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  async approveKyc(
+    @Param('id') id: string,
+    @CurrentUser() admin: { userId: string },
+  ) {
+    return this.kycService.approveKyc(id, admin.userId);
+  }
+
+  @Patch('kyc/:id/reject')
+  @ApiOperation({
+    summary: 'Reject a KYC submission (Admin only)',
+    description:
+      'Sets KYC status to REJECTED or RESUBMISSION_REQUIRED, sends rejection email with reason and notification.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'KYC record ID',
+  })
+  @ApiBody({ type: RejectKycDto })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC rejected successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'KYC already reviewed or not pending',
+  })
+  @ApiResponse({ status: 404, description: 'KYC record not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  async rejectKyc(
+    @Param('id') id: string,
+    @Body() dto: RejectKycDto,
+    @CurrentUser() admin: { userId: string },
+  ) {
+    return this.kycService.rejectKyc(
+      id,
+      admin.userId,
+      dto.reason,
+      dto.requireResubmission ?? false,
+    );
   }
 }

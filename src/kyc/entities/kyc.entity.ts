@@ -11,9 +11,9 @@ import { User } from '../../users/user.entity';
 
 export enum KycStatus {
   PENDING = 'pending',
-  UNDER_REVIEW = 'under_review',
   APPROVED = 'approved',
   REJECTED = 'rejected',
+  RESUBMISSION_REQUIRED = 'resubmission_required',
 }
 
 export enum KycTier {
@@ -84,8 +84,15 @@ export class KycRecord {
   @Column({ nullable: true })
   rejectionReason: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  reviewedBy: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reviewedBy' })
+  reviewer: User | null;
+
   @Column({ type: 'timestamp', nullable: true })
-  reviewedAt: Date;
+  reviewedAt: Date | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   submittedAt: Date;

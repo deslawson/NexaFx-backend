@@ -7,17 +7,18 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { KycRecord, KycStatus, KycTier } from './entities/kyc.entity';
-import { ApproveKycDto } from './dtos/kyc-approve';
-// import { ReviewKycDto } from './dtos/kyc-review';
-import { User } from '../users/user.entity';
+import { User, UserKycTier } from '../users/user.entity';
 import { SubmitKycDto } from './dtos/kyc-submit';
+import { ResubmitKycDto } from './dtos/kyc-resubmit';
 import { ConfigService } from '@nestjs/config';
-import { Notification } from '../notifications/entities/notification.entity';
-import { NotificationType } from '../notifications/entities/notification.entity';
-import { NotificationStatus } from '../notifications/entities/notification.entity';
+import {
+  Notification,
+  NotificationType,
+  NotificationStatus,
+} from '../notifications/entities/notification.entity';
 import { FirebaseService } from '../firebase/firebase.service';
-import { UserKycTier } from '../users/user.entity';
 import { WebhookService } from '../webhooks/services/webhook.service';
+import { KycEmailService } from './kyc-email.service';
 
 @Injectable()
 export class KycService {
@@ -32,6 +33,7 @@ export class KycService {
     private readonly dataSource: DataSource,
     private readonly firebaseService: FirebaseService,
     private readonly webhookService: WebhookService,
+    private readonly kycEmailService: KycEmailService,
   ) {}
 
   async submitKyc(
@@ -42,70 +44,109 @@ export class KycService {
       selfieUrl?: string;
     },
   ) {
-    // 🔥 Check for active submission
-    const existingActiveKyc = await this.kycRepository.findOne({
-      where: [
-        { userId, status: KycStatus.PENDING },
-        { userId, status: KycStatus.UNDER_REVIEW },
-      ],
+    return this.dataSource.transaction(async (manager) => {
+      // Check for active submission
+      const existingActiveKyc = await manager.findOne(KycRecord, {
+        where: [
+          { userId, status: KycStatus.PENDING },
+          { userId, status: KycStatus.RESUBMISSION_REQUIRED },
+        ],
+      });
+
+      if (existingActiveKyc) {
+        if (existingActiveKyc.status === KycStatus.PENDING) {
+          throw new BadRequestException(
+            'You already have a KYC submission under review.',
+          );
+        }
+        throw new BadRequestException(
+          'Your KYC requires resubmission. Please use the /kyc/resubmit endpoint.',
+        );
+      }
+
+      // Basic validation to ensure required file paths exist
+      if (!dto.documentFrontUrl) {
+        throw new BadRequestException('documentFront file is required');
+      }
+
+      if (!dto.selfieUrl) {
+        throw new BadRequestException('selfie file is required');
+      }
+
+      const newKyc = manager.create(KycRecord, {
+        userId,
+        ...dto,
+        status: KycStatus.PENDING,
+        tier: KycTier.TIER_0,
+        submittedAt: new Date(),
+      });
+
+      await manager.save(newKyc);
+
+      return {
+        message: 'KYC submitted successfully',
+        status: newKyc.status,
+        tier: newKyc.tier,
+      };
     });
-
-    if (existingActiveKyc) {
-      throw new BadRequestException(
-        'You already have a KYC submission under review.',
-      );
-    }
-
-    // Basic validation to ensure required file paths exist
-    if (!dto.documentFrontUrl) {
-      throw new BadRequestException('documentFront file is required');
-    }
-
-    if (!dto.selfieUrl) {
-      throw new BadRequestException('selfie file is required');
-    }
-
-    const newKyc = this.kycRepository.create({
-      userId,
-      ...dto,
-      status: KycStatus.PENDING,
-      tier: KycTier.TIER_0,
-      submittedAt: new Date(),
-    });
-
-    await this.kycRepository.save(newKyc);
-
-    return {
-      message: 'KYC submitted successfully',
-      status: newKyc.status,
-      tier: newKyc.tier,
-    };
   }
 
-  async approveKyc(
-    id: string,
-    approveKycDto: ApproveKycDto,
-  ): Promise<KycRecord> {
-    const kyc = await this.kycRepository.findOne({ where: { id } });
-    if (!kyc) {
-      throw new NotFoundException('KYC verification not found');
-    }
+  async resubmitKyc(
+    userId: string,
+    dto: ResubmitKycDto & {
+      documentFrontUrl?: string;
+      documentBackUrl?: string;
+      selfieUrl?: string;
+    },
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      // Find the latest KYC record for this user
+      const existingKyc = await manager.findOne(KycRecord, {
+        where: { userId },
+        order: { createdAt: 'DESC' },
+      });
 
-    if (kyc.status !== KycStatus.PENDING) {
-      throw new BadRequestException(
-        'KYC verification has already been processed',
-      );
-    }
+      if (!existingKyc) {
+        throw new BadRequestException(
+          'No existing KYC submission found. Please submit a new one.',
+        );
+      }
 
-    kyc.status = approveKycDto.status;
-    if (
-      approveKycDto.status === KycStatus.REJECTED &&
-      approveKycDto.rejectionReason
-    ) {
-      kyc.rejectionReason = approveKycDto.rejectionReason;
-    }
+      if (existingKyc.status !== KycStatus.RESUBMISSION_REQUIRED) {
+        throw new BadRequestException(
+          'Resubmission is only allowed when your KYC status is RESUBMISSION_REQUIRED.',
+        );
+      }
 
-    return this.kycRepository.save(kyc);
+      if (!dto.documentFrontUrl) {
+        throw new BadRequestException('documentFront file is required');
+      }
+
+      if (!dto.selfieUrl) {
+        throw new BadRequestException('selfie file is required');
+      }
+
+      // Close the old RESUBMISSION_REQUIRED record, preserving original reason
+      existingKyc.status = KycStatus.REJECTED;
+      existingKyc.reviewedAt = new Date();
+      await manager.save(existingKyc);
+
+      // Create a new PENDING submission
+      const newKyc = manager.create(KycRecord, {
+        userId,
+        ...dto,
+        status: KycStatus.PENDING,
+        tier: KycTier.TIER_0,
+        submittedAt: new Date(),
+      });
+
+      await manager.save(newKyc);
+
+      return {
+        message: 'KYC resubmitted successfully',
+        status: newKyc.status,
+      };
+    });
   }
 
   async getKycStatus(userId: string) {
@@ -122,41 +163,100 @@ export class KycService {
     }
 
     return {
+      id: latestKyc.id,
       status: latestKyc.status,
       tier: latestKyc.tier,
+      documentType: latestKyc.documentType,
+      documentNumber: latestKyc.documentNumber,
       rejectionReason: latestKyc.rejectionReason,
+      submittedAt: latestKyc.submittedAt,
+      reviewedAt: latestKyc.reviewedAt,
     };
   }
 
-  async getPendingKycSubmissions(): Promise<KycRecord[]> {
-    return this.kycRepository.find({
-      where: { status: KycStatus.PENDING },
+  // ── Admin methods ──────────────────────────────────────────────
+
+  async getKycQueue(status?: KycStatus, page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+    const where: Record<string, unknown> = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    const [records, total] = await this.kycRepository.findAndCount({
+      where,
+      relations: ['user', 'reviewer'],
       order: { createdAt: 'ASC' },
+      skip,
+      take: limit,
     });
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        userEmail: r.user?.email ?? null,
+        status: r.status,
+        documentType: r.documentType,
+        documentNumber: r.documentNumber,
+        fullName: r.fullName,
+        submittedAt: r.submittedAt,
+        reviewedBy: r.reviewedBy,
+        reviewedAt: r.reviewedAt,
+        rejectionReason: r.rejectionReason,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  async listPendingKyc() {
-    return this.kycRepository.find({
-      where: { status: KycStatus.PENDING },
-      order: { createdAt: 'ASC' },
+  async getKycById(id: string) {
+    const kyc = await this.kycRepository.findOne({
+      where: { id },
+      relations: ['user', 'reviewer'],
     });
+
+    if (!kyc) {
+      throw new NotFoundException('KYC record not found');
+    }
+
+    return {
+      id: kyc.id,
+      userId: kyc.userId,
+      userEmail: kyc.user?.email ?? null,
+      status: kyc.status,
+      tier: kyc.tier,
+      fullName: kyc.fullName,
+      dateOfBirth: kyc.dateOfBirth,
+      nationality: kyc.nationality,
+      documentType: kyc.documentType,
+      documentNumber: kyc.documentNumber,
+      documentFrontUrl: kyc.documentFrontUrl,
+      documentBackUrl: kyc.documentBackUrl,
+      selfieUrl: kyc.selfieUrl,
+      rejectionReason: kyc.rejectionReason,
+      reviewedBy: kyc.reviewedBy,
+      reviewerEmail: kyc.reviewer?.email ?? null,
+      reviewedAt: kyc.reviewedAt,
+      submittedAt: kyc.submittedAt,
+      createdAt: kyc.createdAt,
+      updatedAt: kyc.updatedAt,
+    };
   }
 
-  async findByUserId(userId: string): Promise<KycRecord[]> {
-    return this.kycRepository.find({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async reviewKyc(kycId: string, decision: KycStatus, reason?: string) {
+  async approveKyc(kycId: string, reviewerId: string) {
     return this.dataSource.transaction(async (manager) => {
       const kyc = await manager.findOne(KycRecord, {
         where: { id: kycId },
       });
 
       if (!kyc) {
-        throw new BadRequestException('KYC record not found');
+        throw new NotFoundException('KYC record not found');
       }
 
       if (
@@ -166,8 +266,10 @@ export class KycService {
         throw new BadRequestException('KYC already reviewed');
       }
 
-      if (decision !== KycStatus.APPROVED && decision !== KycStatus.REJECTED) {
-        throw new BadRequestException('Invalid decision');
+      if (kyc.status !== KycStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending submissions can be approved',
+        );
       }
 
       const user = await manager.findOne(User, {
@@ -175,66 +277,164 @@ export class KycService {
       });
 
       if (!user) {
-        throw new BadRequestException('User not found');
+        throw new NotFoundException('User not found');
       }
 
-      let notificationPayload: Partial<Notification>;
+      // Update KYC record
+      kyc.status = KycStatus.APPROVED;
+      const userKycTier = this.resolveUserKycTier(kyc);
+      const kycTierMap: Record<UserKycTier, KycTier> = {
+        [UserKycTier.UNVERIFIED]: KycTier.TIER_0,
+        [UserKycTier.BASIC]: KycTier.TIER_1,
+        [UserKycTier.ENHANCED]: KycTier.TIER_2,
+        [UserKycTier.FULL]: KycTier.TIER_2,
+      };
+      kyc.tier = kycTierMap[userKycTier];
+      kyc.reviewedBy = reviewerId;
+      kyc.reviewedAt = new Date();
 
-      if (decision === KycStatus.APPROVED) {
-        kyc.status = KycStatus.APPROVED;
-        const tier = this.resolveUserKycTier(kyc);
-        kyc.tier =
-          tier === UserKycTier.BASIC
-            ? KycTier.TIER_1
-            : tier === UserKycTier.UNVERIFIED
-              ? KycTier.TIER_0
-              : KycTier.TIER_2;
-        kyc.reviewedAt = new Date();
+      // Update user verification
+      user.isVerified = true;
+      user.kycTier = userKycTier;
 
-        user.isVerified = true;
-        user.kycTier = tier;
+      await manager.save(kyc);
+      await manager.save(user);
 
-        notificationPayload = {
-          userId: user.id,
-          type: NotificationType.SYSTEM,
-          title: 'KYC Approved',
-          message:
-            'Your identity verification has been approved. You now have full access to higher transaction limits.',
-          status: NotificationStatus.UNREAD,
-          relatedId: kyc.id,
-          metadata: {
-            entity: 'KYC',
-            kycStatus: 'approved',
-            tier,
-          },
-        };
-      } else {
-        kyc.status = KycStatus.REJECTED;
-        kyc.rejectionReason = reason || 'KYC rejected';
-        kyc.reviewedAt = new Date();
+      // Create in-app notification
+      const notificationPayload: Partial<Notification> = {
+        userId: user.id,
+        type: NotificationType.SYSTEM,
+        title: 'KYC Approved',
+        message:
+          'Your identity verification has been approved. You now have full access to higher transaction limits.',
+        status: NotificationStatus.UNREAD,
+        relatedId: kyc.id,
+        metadata: {
+          entity: 'KYC',
+          kycStatus: 'approved',
+          tier: userKycTier,
+        },
+      };
+      await manager.save(Notification, notificationPayload);
 
+      // Send push notification via Firebase
+      if (user.fcmTokens && user.fcmTokens.length > 0) {
+        this.firebaseService
+          .sendToTokens(
+            user.fcmTokens,
+            'KYC Approved',
+            'Your identity verification has been approved. You now have higher transaction limits.',
+            {
+              entity: 'KYC',
+              kycStatus: 'approved',
+            },
+          )
+          .catch((err: Error) =>
+            this.logger.error(`Failed to send KYC FCM: ${err.message}`),
+          );
+      }
+
+      // Send approval email
+      this.kycEmailService
+        .sendApprovalEmail(user.email, user.firstName ?? 'User')
+        .catch((err: Error) =>
+          this.logger.error(
+            `Failed to send KYC approval email: ${err.message}`,
+          ),
+        );
+
+      // Dispatch webhook
+      this.webhookService
+        .dispatch('kyc.approved', kyc, user.id)
+        .catch((err: Error) =>
+          this.logger.error(`Webhook dispatch failed: ${err.message}`),
+        );
+
+      return {
+        message: 'KYC approved successfully',
+      };
+    });
+  }
+
+  async rejectKyc(
+    kycId: string,
+    reviewerId: string,
+    reason: string,
+    requireResubmission: boolean = false,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const kyc = await manager.findOne(KycRecord, {
+        where: { id: kycId },
+      });
+
+      if (!kyc) {
+        throw new NotFoundException('KYC record not found');
+      }
+
+      if (
+        kyc.status === KycStatus.APPROVED ||
+        kyc.status === KycStatus.REJECTED
+      ) {
+        throw new BadRequestException('KYC already reviewed');
+      }
+
+      if (kyc.status !== KycStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending submissions can be rejected',
+        );
+      }
+
+      const user = await manager.findOne(User, {
+        where: { id: kyc.userId },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const newStatus = requireResubmission
+        ? KycStatus.RESUBMISSION_REQUIRED
+        : KycStatus.REJECTED;
+
+      kyc.status = newStatus;
+      kyc.rejectionReason = reason;
+      kyc.reviewedBy = reviewerId;
+      kyc.reviewedAt = new Date();
+
+      // For rejected, reset verification; for resubmission_required, leave as is
+      if (newStatus === KycStatus.REJECTED) {
         user.isVerified = false;
         user.kycTier = UserKycTier.UNVERIFIED;
-
-        notificationPayload = {
-          userId: user.id,
-          type: NotificationType.SYSTEM,
-          title: 'KYC Rejected',
-          message: `Your KYC submission was rejected. Reason: ${kyc.rejectionReason}`,
-          status: NotificationStatus.UNREAD,
-          relatedId: kyc.id,
-          metadata: {
-            entity: 'KYC',
-            kycStatus: 'rejected',
-            reason: kyc.rejectionReason,
-          },
-        };
       }
 
       await manager.save(kyc);
       await manager.save(user);
+
+      // Create in-app notification
+      const notificationMessage =
+        newStatus === KycStatus.RESUBMISSION_REQUIRED
+          ? `Your KYC submission requires changes. Reason: ${reason}`
+          : `Your KYC submission was rejected. Reason: ${reason}`;
+
+      const notificationPayload: Partial<Notification> = {
+        userId: user.id,
+        type: NotificationType.SYSTEM,
+        title:
+          newStatus === KycStatus.RESUBMISSION_REQUIRED
+            ? 'KYC Resubmission Required'
+            : 'KYC Rejected',
+        message: notificationMessage,
+        status: NotificationStatus.UNREAD,
+        relatedId: kyc.id,
+        metadata: {
+          entity: 'KYC',
+          kycStatus: newStatus,
+          reason,
+        },
+      };
       await manager.save(Notification, notificationPayload);
 
+      // Send push notification via Firebase
       if (user.fcmTokens && user.fcmTokens.length > 0) {
         this.firebaseService
           .sendToTokens(
@@ -243,31 +443,52 @@ export class KycService {
             notificationPayload.message!,
             {
               entity: 'KYC',
-              kycStatus: decision.toLowerCase(),
+              kycStatus: newStatus,
             },
           )
-          .catch((err) =>
+          .catch((err: Error) =>
             this.logger.error(`Failed to send KYC FCM: ${err.message}`),
           );
       }
 
-      if (decision === KycStatus.APPROVED) {
-        this.webhookService
-          .dispatch('kyc.approved', kyc, user.id)
-          .catch((err) =>
-            this.logger.error(`Webhook dispatch failed: ${err.message}`),
-          );
-      } else if (decision === KycStatus.REJECTED) {
-        this.webhookService
-          .dispatch('kyc.rejected', kyc, user.id)
-          .catch((err) =>
-            this.logger.error(`Webhook dispatch failed: ${err.message}`),
-          );
-      }
+      // Dispatch webhook
+      const webhookEvent =
+        newStatus === KycStatus.RESUBMISSION_REQUIRED
+          ? 'kyc.resubmission_required'
+          : 'kyc.rejected';
+      this.webhookService
+        .dispatch(webhookEvent, kyc, user.id)
+        .catch((err: Error) =>
+          this.logger.error(`Webhook dispatch failed: ${err.message}`),
+        );
+
+      // Send rejection email
+      this.kycEmailService
+        .sendRejectionEmail(
+          user.email,
+          user.firstName ?? 'User',
+          reason,
+          newStatus === KycStatus.RESUBMISSION_REQUIRED,
+        )
+        .catch((err: Error) =>
+          this.logger.error(
+            `Failed to send KYC rejection email: ${err.message}`,
+          ),
+        );
 
       return {
-        message: `KYC ${decision} successfully`,
+        message:
+          newStatus === KycStatus.RESUBMISSION_REQUIRED
+            ? 'KYC resubmission requested successfully'
+            : 'KYC rejected successfully',
       };
+    });
+  }
+
+  async findByUserId(userId: string): Promise<KycRecord[]> {
+    return this.kycRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
     });
   }
 

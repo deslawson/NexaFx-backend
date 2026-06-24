@@ -35,9 +35,11 @@ import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
 import { StellarModule } from './modules/stellar/stellar.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
+    StorageModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',

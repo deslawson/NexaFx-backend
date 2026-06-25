@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,17 +10,17 @@ import * as Joi from 'joi';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import Redis from 'ioredis';
 import { TerminusModule } from '@nestjs/terminus';
+import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { HealthModule } from './health/health.module';
-import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { CurrenciesModule } from './currencies/currencies.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { CommonModule } from './common/common.module';
 import { PlanThrottlerGuard } from './common/guards/plan-throttler.guard';
-import { HealthModule } from './health/health.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TransactionsModule } from './transactions/transaction.module';
@@ -42,6 +44,7 @@ import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
 import { StellarModule } from './modules/stellar/stellar.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RedisModule } from './modules/redis/redis.module';
 import { REDIS_CLIENT } from './modules/redis/redis.constants';
@@ -49,8 +52,11 @@ import { QueuesModule } from './modules/queues/queues.module';
 import { MailModule } from './modules/mail/mail.module';
 import { IpBlocklistModule } from './modules/ip-blocklist/ip-blocklist.module';
 import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
+import { StorageModule } from './modules/storage/storage.module';
+
 @Module({
   imports: [
+    StorageModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -114,7 +120,6 @@ import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
             : false,
         autoLoadEntities: true,
       }),
-      inject: [ConfigService],
     }),
 
     ThrottlerModule.forRootAsync({
@@ -138,6 +143,27 @@ import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
     ExchangeRatesModule,
     GatewaysModule,
     HealthModule,
+    AuditLogsModule,
+    NotificationsModule,
+    FirebaseModule,
+    TransactionsModule,
+    ReferralsModule,
+    BeneficiariesModule,
+    KycModule,
+    ScheduledJobsModule,
+    ReceiptsModule,
+    FeesModule,
+    PushNotificationsModule,
+    RateAlertsModule,
+    AdminModule,
+    SuperAdminModule,
+    DaoModule,
+    GraphQLApiModule,
+    WebhooksModule,
+    WalletsModule,
+    LedgerModule,
+    UsersModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -153,6 +179,10 @@ import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
       provide: APP_GUARD,
       useClass: PlanThrottlerGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule { }

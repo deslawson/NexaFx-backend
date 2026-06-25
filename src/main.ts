@@ -1,12 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ClassSerializerInterceptor,
+  Logger,
   ValidationPipe,
   VersioningType,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Reflector } from '@nestjs/core';
@@ -21,9 +23,10 @@ import { ConfigService } from '@nestjs/config';
 import {createAdminQueueAuthMiddleware} from './modules/queues/admin-queue-auth.middleware';
 import { QueuesDashboardService } from './modules/queues/queues-dashboard.service';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const logger = new Logger('Bootstrap');
   const configService = app.get(ConfigService);
 
@@ -45,7 +48,7 @@ async function bootstrap() {
   );
 
   // Global Filters (order matters: specific before general)
-//   app.useGlobalFilters(new HttpExceptionFilter(), new AllExceptionsFilter());
+  //   app.useGlobalFilters(new HttpExceptionFilter(), new AllExceptionsFilter());
 
   app.enableVersioning({
     type: VersioningType.URI,
@@ -86,11 +89,18 @@ async function bootstrap() {
   const port = configService.get<number>('PORT') ?? 3000;
   const environment = configService.get<string>('NODE_ENV');
 
+  // Configure NestJS static file middleware to serve uploads
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads',
+  });
+
   await app.listen(port);
 
   logger.log(`NexaFX API v2 started on port ${port}`);
   logger.log(`Environment: ${environment}`);
-  logger.log(`CORS origins: ${origins.length ? origins.join(', ') : 'none configured'}`);
+  logger.log(
+    `CORS origins: ${origins.length ? origins.join(', ') : 'none configured'}`,
+  );
 }
 
 void bootstrap();

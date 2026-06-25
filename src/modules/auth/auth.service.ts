@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -231,7 +235,7 @@ export class AuthService {
         passwordHash: true,
         isActive: true,
       },
-    }) as Promise<AuthUser | null>;
+    });
   }
 
   private async findAuthUserById(id: string): Promise<AuthUser | null> {
@@ -245,7 +249,7 @@ export class AuthService {
         passwordHash: true,
         isActive: true,
       },
-    }) as Promise<AuthUser | null>;
+    });
   }
 
   private normalizeEmail(email: string) {
@@ -258,7 +262,8 @@ export class AuthService {
 
   private getAccessTokenSecret() {
     const secret = this.configService.get<string>('JWT_SECRET');
-    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
 
     if (!secret && isProduction) {
       throw new Error('JWT_SECRET is not configured');

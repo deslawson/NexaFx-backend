@@ -26,6 +26,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { IdempotencyRecord } from '../common/entities/idempotency-record.entity';
 import { DataRequest } from '../users/entities/data-request.entity';
 import { DataSource } from 'typeorm';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class ScheduledJobsService {
@@ -54,6 +55,7 @@ export class ScheduledJobsService {
     private readonly proposalService: ProposalService,
     private readonly auditLogsService: AuditLogsService,
     private readonly ledgerVerificationService: LedgerVerificationService,
+    private readonly analyticsService: AnalyticsService,
   ) {
     // Truncate hostname to 255 characters to match DB column constraint
     this.instanceId = os.hostname().substring(0, 255);
@@ -336,6 +338,29 @@ export class ScheduledJobsService {
     } catch (error) {
       this.logger.error(
         '[Scheduled Job] Fatal error in wallet balances snapshot sync:',
+        error,
+      );
+    }
+  }
+
+  /**
+   * Record daily balance snapshots for all users at 23:55 UTC
+   */
+  @Cron('55 23 * * *')
+  async recordDailyBalanceSnapshots(): Promise<void> {
+    this.logger.log(
+      '[Scheduled Job] Starting daily balance snapshot recording',
+    );
+
+    try {
+      const count =
+        await this.analyticsService.recordBalanceSnapshotsForAllUsers();
+      this.logger.log(
+        `[Scheduled Job] Balance snapshots recorded for ${count} users`,
+      );
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Fatal error recording balance snapshots:',
         error,
       );
     }

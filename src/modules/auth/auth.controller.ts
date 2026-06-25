@@ -39,7 +39,9 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate a refresh token and return a new access token' })
+  @ApiOperation({
+    summary: 'Validate a refresh token and return a new access token',
+  })
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(refreshTokenDto);
   }

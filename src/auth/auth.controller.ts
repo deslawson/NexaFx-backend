@@ -7,6 +7,7 @@ import {
   Request,
   Req,
 } from '@nestjs/common';
+import { Audit } from '../common/decorators/audit.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
@@ -60,6 +61,7 @@ export class AuthController {
   @Public()
   @Post('verify-login-otp')
   @HttpCode(HttpStatus.OK)
+  @Audit('user.login')
   @ApiOperation({ summary: 'Verify login OTP and receive access tokens' })
   @ApiBody({ type: VerifyLoginOtpDto })
   @ApiResponse({
@@ -77,6 +79,7 @@ export class AuthController {
   @Public()
   @Post('verify-2fa')
   @HttpCode(HttpStatus.OK)
+  @Audit('user.login')
   @ApiOperation({
     summary: 'Verify authenticator app TOTP and receive access tokens',
   })
@@ -209,6 +212,7 @@ export class AuthController {
   })
   @Post('signup')
   @HttpCode(HttpStatus.OK)
+  @Audit('user.register')
   @ApiOperation({ summary: 'Register a new user account' })
   @ApiBody({ type: SignupDto })
   @ApiResponse({
@@ -268,6 +272,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @Audit('user.logout')
   @ApiOperation({ summary: 'Logout current session' })
   @ApiResponse({
     status: 200,
@@ -291,6 +296,7 @@ export class AuthController {
 
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
+  @Audit('user.logout')
   @ApiOperation({ summary: 'Logout from all devices' })
   @ApiResponse({
     status: 200,

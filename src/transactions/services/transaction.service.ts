@@ -15,6 +15,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '../entities/transaction.entity';
+import { TransactionCategory } from '../../analytics/entities/transaction-category.entity';
 import {
   CreateDepositDto,
   CreateWithdrawalDto,
@@ -138,6 +139,8 @@ export class TransactionsService {
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(TransactionCategory)
+    private readonly categoryRepository: Repository<TransactionCategory>,
     private readonly dataSource: DataSource,
     private readonly currenciesService: CurrenciesService,
     private readonly exchangeRatesService: ExchangeRatesService,
@@ -261,6 +264,12 @@ export class TransactionsService {
 
       this.logger.log(
         `Deposit transaction created successfully: ${transaction.id}`,
+      );
+
+      this.autoAssignCategory(transaction).catch((e) =>
+        this.logger.warn(
+          `Non-blocking category assignment failed: ${e.message}`,
+        ),
       );
 
       return transaction;
@@ -465,6 +474,12 @@ export class TransactionsService {
 
       this.logger.log(
         `Withdrawal transaction created successfully: ${transaction.id}`,
+      );
+
+      this.autoAssignCategory(transaction).catch((e) =>
+        this.logger.warn(
+          `Non-blocking category assignment failed: ${e.message}`,
+        ),
       );
 
       return transaction;
@@ -691,6 +706,12 @@ export class TransactionsService {
 
         this.logger.log(
           `Swap transaction completed successfully: ${transaction.id} (Attempt ${i})`,
+        );
+
+        this.autoAssignCategory(transaction).catch((e) =>
+          this.logger.warn(
+            `Non-blocking category assignment failed: ${e.message}`,
+          ),
         );
 
         this.webhookService
@@ -1180,6 +1201,51 @@ export class TransactionsService {
       where: { status: TransactionStatus.PENDING },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  // ── Category auto-assignment ───────────────────────────────────────────────
+
+  private async autoAssignCategory(transaction: Transaction): Promise<void> {
+    try {
+      let categoryName: string;
+
+      switch (transaction.type) {
+        case TransactionType.SWAP:
+          categoryName = 'Exchange';
+          break;
+        case TransactionType.WITHDRAW:
+          categoryName = 'Transfers';
+          break;
+        case TransactionType.DEPOSIT: {
+          const meta = transaction.metadata;
+          if (meta?.source === 'referral') {
+            categoryName = 'Referral Rewards';
+          } else if (meta?.source === 'savings') {
+            categoryName = 'Savings';
+          } else if (meta?.source === 'batch' || meta?.batchPayment) {
+            categoryName = 'Payroll';
+          } else {
+            categoryName = 'Transfers';
+          }
+          break;
+        }
+        default:
+          categoryName = 'Other';
+      }
+
+      const category = await this.categoryRepository.findOne({
+        where: { name: categoryName, isSystem: true },
+      });
+
+      if (category) {
+        transaction.categoryId = category.id;
+        await this.transactionRepository.save(transaction);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Category auto-assignment failed for transaction ${transaction.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────

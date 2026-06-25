@@ -29,7 +29,7 @@ export class CreateSupportTickets1706000000000 implements MigrationInterface {
             name: 'ticketNumber',
             type: 'varchar',
             isUnique: true,
-            default: `"TKT-" || lpad(nextval('ticket_number_seq')::text, 5, '0')`,
+            default: `\'TKT-\' || lpad(nextval(\'ticket_number_seq\')::text, 5, \'0\')`,
           },
           {
             name: 'userId',

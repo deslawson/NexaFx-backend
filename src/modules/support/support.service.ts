@@ -97,7 +97,7 @@ export class SupportService {
     // Send confirmation email asynchronously
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (user?.email) {
-      const emailSubject = `[${savedTicket.ticketNumber}] Support Ticket Created: ${savedTicket.subject}`;
+      const emailSubject = `[${savedTicket.ticketNumber}]`;
       const emailBody = `Hello ${user.firstName || 'User'},\n\nYour support ticket has been successfully created.\n\nTicket Number: ${savedTicket.ticketNumber}\nSubject: ${savedTicket.subject}\nCategory: ${savedTicket.category}\nPriority: ${savedTicket.priority}\n\nOur support team will get back to you shortly.\n\nBest regards,\nNexaFX Support Team`;
       this.sendEmail(user.email, emailSubject, emailBody).catch((err) =>
         this.logger.error(`Failed sending confirmation email: ${err.message}`),
@@ -174,7 +174,7 @@ export class SupportService {
         where: { id: ticket.assignedTo },
       });
       if (admin?.email) {
-        const emailSubject = `Re: [${ticket.ticketNumber}] User Replied to Ticket`;
+        const emailSubject = `Re: [${ticket.ticketNumber}]`;
         const emailBody = `Hello ${admin.firstName || 'Admin'},\n\nThe user has replied to ticket ${ticket.ticketNumber}.\n\nMessage:\n"${dto.body}"\n\nPlease view the admin dashboard to respond.`;
         this.sendEmail(admin.email, emailSubject, emailBody).catch((err) =>
           this.logger.error(`Failed sending admin reply notification: ${err.message}`),
@@ -345,7 +345,7 @@ export class SupportService {
         where: { id: ticket.userId },
       });
       if (user?.email) {
-        const emailSubject = `Re: [${ticket.ticketNumber}] Support Team Replied`;
+        const emailSubject = `Re: [${ticket.ticketNumber}]`;
         const emailBody = `Hello ${user.firstName || 'User'},\n\nOur support team has replied to your ticket ${ticket.ticketNumber}.\n\nMessage:\n"${dto.body}"\n\nPlease log in to view the ticket and reply if needed.\n\nBest regards,\nNexaFX Support Team`;
         this.sendEmail(user.email, emailSubject, emailBody).catch((err) =>
           this.logger.error(`Failed sending user reply notification: ${err.message}`),

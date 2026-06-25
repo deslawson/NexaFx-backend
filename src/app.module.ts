@@ -5,6 +5,37 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { HealthModule } from './health/health.module';
+import { AppService } from './app.service';
+import { AuthModule } from './modules/auth/auth.module';
+import { CurrenciesModule } from './currencies/currencies.module';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
+import { CommonModule } from './common/common.module';
+import { PlanThrottlerGuard } from './common/guards/plan-throttler.guard';
+import { HealthModule } from './health/health.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { TransactionsModule } from './transactions/transaction.module';
+import { BeneficiariesModule } from './beneficiaries/beneficiaries.module';
+import { KycModule } from './kyc/kyc.module';
+import { ScheduledJobsModule } from './scheduled-jobs/scheduled-jobs.module';
+import { ReceiptsModule } from './receipts/receipts.module';
+import { FeesModule } from './fees/fees.module';
+import { PushNotificationsModule } from './push-notifications/push-notifications.module';
+import { FirebaseModule } from './firebase/firebase.module';
+import { AdminModule } from './admin/admin.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { DaoModule } from './dao/dao.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { GraphQLApiModule } from './graphql/graphql.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
+import { GatewaysModule } from './gateways/gateways.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { WalletsModule } from './wallets/wallets.module';
+import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
+import { LedgerModule } from './ledger/ledger.module';
+import { UsersModule } from './users/users.module';
+import { StellarModule } from './modules/stellar/stellar.module';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -33,7 +64,22 @@ import { HealthModule } from './health/health.module';
             : false,
         autoLoadEntities: true,
       }),
+      inject: [ConfigService],
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        ttl: configService.get<number>('THROTTLE_TTL') ?? 60,
+        limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
+      }),
+      inject: [ConfigService],
+    }),
+    CommonModule,
+    StellarModule,
+    AuthModule,
+    CurrenciesModule,
+    ExchangeRatesModule,
+    GatewaysModule,
     HealthModule,
   ],
   controllers: [AppController],

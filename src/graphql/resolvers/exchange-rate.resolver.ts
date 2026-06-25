@@ -16,7 +16,7 @@ export class ExchangeRateResolver {
       from: result.from,
       to: result.to,
       rate: result.rate,
-      timestamp: result.fetchedAt ?? new Date().toISOString(),
+      timestamp: result.cachedAt ?? new Date().toISOString(),
     };
   }
 

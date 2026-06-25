@@ -14,6 +14,10 @@ import { MulterExceptionFilter } from './common/filters/multer-exception.filter'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import helmet from 'helmet';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import {createAdminQueueAuthMiddleware} from './modules/queues/admin-queue-auth.middleware';
+import { QueuesDashboardService } from './modules/queues/queues-dashboard.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -55,6 +59,17 @@ async function bootstrap() {
 
   const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, swaggerDoc);
+
+
+  const jwtService = app.get(JwtService);
+  const configService = app.get(ConfigService);
+  const queuesDashboard = app.get(QueuesDashboardService);
+
+  app.use(
+    '/admin/queues',
+    createAdminQueueAuthMiddleware(jwtService, configService),
+    queuesDashboard.getRouter(),
+  );
 
   // CORS
   app.enableCors({

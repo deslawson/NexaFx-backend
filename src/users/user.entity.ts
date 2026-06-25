@@ -54,10 +54,6 @@ export class User {
   @Exclude({ toPlainOnly: true })
   passwordHash?: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true, select: false })
-  @Exclude({ toPlainOnly: true })
-  refreshTokenHash?: string | null;
-
   @OneToMany(() => KycRecord, (kyc) => kyc.user)
   kycRecords: KycRecord[];
 

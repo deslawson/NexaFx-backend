@@ -128,7 +128,6 @@ export class UsersService {
       isVerified: false,
       isEmailVerified: false,
       isActive: true,
-      refreshTokenHash: null,
     });
 
     const savedUser = await this.userRepository.save(user);

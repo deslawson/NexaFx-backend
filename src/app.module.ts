@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { CacheModule } from '@nestjs/cache-manager';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from 'nestjs-throttler-storage-redis';
+import * as Joi from 'joi';
+import { redisStore } from 'cache-manager-ioredis-yet';
+import Redis from 'ioredis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
@@ -34,13 +39,54 @@ import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
-
+import { RedisModule } from './modules/redis/redis.module';
+import { REDIS_CLIENT } from './modules/redis/redis.constants';
+import { QueuesModule } from './modules/queues/queues.module';
+import { MailModule } from './modules/mail/mail.module';
+import { IpBlocklistModule } from './modules/ip-blocklist/ip-blocklist.module';
+import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validationSchema: Joi.object({
+        NODE_ENV: Joi.string()
+          .valid('development', 'test', 'staging', 'production')
+          .default('development'),
+        PORT: Joi.number().default(3001),
+        DATABASE_URL: Joi.string().uri().optional(),
+        REDIS_URL: Joi.string().uri().default('redis://localhost:6379'),
+        JWT_SECRET: Joi.string().optional(),
+        JWT_REFRESH_SECRET: Joi.string().optional(),
+        THROTTLE_TTL: Joi.number().default(60),
+        THROTTLE_LIMIT: Joi.number().default(100),
+      }).unknown(true),
     }),
+    RedisModule,
+    IpBlocklistModule,
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        try {
+          return {
+            store: await redisStore({
+              url:
+                configService.get<string>('REDIS_URL') ??
+                'redis://localhost:6379',
+            }),
+            ttl: 60_000,
+          };
+        } catch {
+          return {
+            ttl: 60_000,
+          };
+        }
+      },
+      inject: [ConfigService],
+    }),
+    QueuesModule,
     ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -58,14 +104,21 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
       }),
       inject: [ConfigService],
     }),
+
     ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        ttl: configService.get<number>('THROTTLE_TTL') ?? 60,
-        limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
+      imports: [ConfigModule, RedisModule],
+      useFactory: (configService: ConfigService, redisClient: Redis) => ({
+        throttlers: [
+          {
+            ttl: (configService.get<number>('THROTTLE_TTL') ?? 60) * 1000,
+            limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
+          },
+        ],
+        storage: new ThrottlerStorageRedisService(redisClient),
       }),
-      inject: [ConfigService],
+      inject: [ConfigService, REDIS_CLIENT],
     }),
+    MailModule,
     CommonModule,
     AuthModule,
     CurrenciesModule,
@@ -98,6 +151,9 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
   controllers: [AppController],
   providers: [
     AppService,
+    { provide: APP_GUARD, 
+      useClass: IpBlocklistGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

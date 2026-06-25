@@ -57,13 +57,13 @@ export class ExchangeRatesService {
     await this.validateCurrencyPair(fromCode, toCode);
 
     const cacheKey = this.getCacheKey(fromCode, toCode);
-    const cached = this.cache.get(cacheKey);
+    const cached = await this.cache.get(cacheKey);
     if (cached) {
       return this.toRateResult(fromCode, toCode, cached);
     }
 
     if (fromCode === toCode) {
-      const entry = this.cache.set(cacheKey, {
+      const entry = await this.cache.set(cacheKey, {
         rate: 1,
         fetchedAt: new Date().toISOString(),
       });
@@ -76,7 +76,7 @@ export class ExchangeRatesService {
         fromCode,
         toCode,
       );
-      const entry = this.cache.set(cacheKey, {
+      const entry = await this.cache.set(cacheKey, {
         rate: providerRate.rate,
         fetchedAt: providerRate.fetchedAt,
       });

@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UsePipes,
 } from '@nestjs/common';
+import { Audit } from '../common/decorators/audit.decorator';
 import {
   ApiBearerAuth,
   ApiTags,
@@ -60,6 +61,7 @@ export class KycController {
     status: 400,
     description: 'Invalid data, file type, or existing submission',
   })
+  @Audit('kyc.submission')
   @ApiResponse({ status: 422, description: 'File failed virus scan' })
   async submitKyc(
     @CurrentUser() user: CurrentUserPayload,
@@ -111,9 +113,28 @@ export class KycController {
   @ApiOperation({ summary: 'Approve or reject a KYC submission (Admin)' })
   @ApiParam({ name: 'id', type: String, description: 'KYC record ID' })
   @ApiBody({ type: ApproveKycDto })
-  @ApiResponse({ status: 200, description: 'KYC status updated', type: KycRecord })
-  @ApiResponse({ status: 400, description: 'Invalid data or already processed' })
-  @ApiResponse({ status: 404, description: 'KYC record not found' })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC status updated successfully',
+    type: KycRecord,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid KYC data or already processed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'KYC record not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  @Audit('kyc.review')
   async approveKyc(
     @Param('id') id: string,
     @Body() approveKycDto: ApproveKycDto,
@@ -127,8 +148,28 @@ export class KycController {
   @ApiOperation({ summary: 'Review and decide on a KYC submission (Admin)' })
   @ApiParam({ name: 'id', type: String, description: 'KYC record ID' })
   @ApiBody({ type: ReviewKycDto })
-  @ApiResponse({ status: 200, description: 'KYC reviewed successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid decision or already reviewed' })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC reviewed successfully',
+    schema: { example: { message: 'KYC approved successfully' } },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid decision or KYC already reviewed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'KYC record or user not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  @Audit('kyc.review')
   async reviewKyc(@Param('id') id: string, @Body() dto: ReviewKycDto) {
     return this.kycService.reviewKyc(id, dto.decision, dto.reason);
   }

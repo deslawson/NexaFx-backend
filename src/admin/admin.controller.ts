@@ -9,7 +9,9 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
+import { Audit } from '../common/decorators/audit.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -37,6 +39,8 @@ import {
 } from './dto/transaction-limit.dto';
 import { Response } from 'express';
 import { join } from 'path';
+import { AdminAuditLogsQueryDto } from './dto/admin-audit-logs-query.dto';
+import { AdminAuditLogsExportQueryDto } from './dto/admin-audit-logs-export-query.dto';
 import { UserKycTier } from '../users/user.entity';
 
 @ApiTags('Admin')
@@ -93,6 +97,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/role')
+  @Audit('admin.role_change')
   @ApiOperation({ summary: 'Update user role (Admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User UUID' })
   @ApiBody({ type: UpdateUserRoleDto })
@@ -127,6 +132,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/suspend')
+  @Audit('admin.user_deactivation')
   @ApiOperation({ summary: 'Suspend user account (Admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'User suspended successfully' })
@@ -324,5 +330,32 @@ export class AdminController {
         typedRes.status(404).send({ message: 'File not found' });
       }
     });
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Get platform stats (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Stats retrieved successfully' })
+  async getStats() {
+    return this.adminService.getStats();
+  }
+
+  @Get('audit-logs')
+  @ApiOperation({ summary: 'Get audit logs (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
+  async getAuditLogs(@Query() query: AdminAuditLogsQueryDto) {
+    return this.adminService.getAdminAuditLogs(query);
+  }
+
+  @Get('audit-logs/export')
+  @ApiOperation({ summary: 'Export audit logs to CSV (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Streaming CSV export started' })
+  async exportAuditLogs(
+    @Query() query: AdminAuditLogsExportQueryDto,
+    @Res() res: Response,
+  ) {
+    if (query.format !== 'csv') {
+      throw new BadRequestException('Unsupported format. Only csv is supported.');
+    }
+    return this.adminService.streamAuditLogsCsv(res, query);
   }
 }

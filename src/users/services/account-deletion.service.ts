@@ -365,7 +365,7 @@ export class AccountDeletionService {
       await queryRunner.manager.delete(Notification, { userId });
 
       // Delete audit logs
-      await queryRunner.manager.delete(AuditLog, { userId });
+      await queryRunner.manager.delete(AuditLog, { actorId: userId });
 
       // Delete price alerts
       await queryRunner.manager.delete('rate_alerts', { userId });

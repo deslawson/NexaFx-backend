@@ -50,4 +50,68 @@ export async function seedUsers(dataSource: DataSource) {
     },
   ];
   await userRepository.upsert(users, ['id']);
+    const userRepository = dataSource.getRepository(User);
+    const users = [
+        {
+            id: uuidv5('superadmin', NAMESPACE),
+            email: 'superadmin@nexa.com',
+            password: await bcrypt.hash('SuperAdminPass123!', 12),
+            passwordHash: await bcrypt.hash('SuperAdminPass123!', 12),
+            role: 'SUPER_ADMIN',
+            isVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            isTwoFactorEnabled: false,
+            refreshTokenHash: null,
+        },
+        {
+            id: uuidv5('admin1', NAMESPACE),
+            email: 'admin1@nexa.com',
+            password: await bcrypt.hash('AdminPass1!', 12),
+            passwordHash: await bcrypt.hash('AdminPass1!', 12),
+            role: 'ADMIN',
+            isVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            isTwoFactorEnabled: false,
+            refreshTokenHash: null,
+        },
+        {
+            id: uuidv5('admin2', NAMESPACE),
+            email: 'admin2@nexa.com',
+            password: await bcrypt.hash('AdminPass2!', 12),
+            passwordHash: await bcrypt.hash('AdminPass2!', 12),
+            role: 'ADMIN',
+            isVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            isTwoFactorEnabled: false,
+            refreshTokenHash: null,
+        },
+        {
+            id: uuidv5('user1', NAMESPACE),
+            email: 'user1@nexa.com',
+            password: await bcrypt.hash('UserPass1!', 12),
+            passwordHash: await bcrypt.hash('UserPass1!', 12),
+            role: 'USER',
+            isVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            isTwoFactorEnabled: false,
+            refreshTokenHash: null,
+        },
+        {
+            id: uuidv5('user2', NAMESPACE),
+            email: 'user2@nexa.com',
+            password: await bcrypt.hash('UserPass2!', 12),
+            passwordHash: await bcrypt.hash('UserPass2!', 12),
+            role: 'USER',
+            isVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            isTwoFactorEnabled: false,
+            refreshTokenHash: null,
+        },
+    ];
+    await userRepository.upsert(users, ['id']);
 }

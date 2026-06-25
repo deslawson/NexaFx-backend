@@ -431,6 +431,12 @@ export class AuthService {
       encryptedSecretKey,
     );
 
+    try {
+      await this.stellarService.fundTestnetWallet(wallet.publicKey);
+    } catch {
+      // Friendbot funding is best-effort during signup.
+    }
+
     if (referredBy) {
       await this.referralsService.createPendingReferral(referredBy, user.id);
     }

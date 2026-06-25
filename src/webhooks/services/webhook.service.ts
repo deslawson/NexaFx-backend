@@ -8,7 +8,8 @@ import axios from 'axios';
 import { URL } from 'url';
 
 // Private IP ranges that must never be targeted by outbound webhook requests
-const BLOCKED_HOSTNAMES = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|0\.0\.0\.0)/i;
+const BLOCKED_HOSTNAMES =
+  /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|0\.0\.0\.0)/i;
 
 @Injectable()
 export class WebhookService {
@@ -56,11 +57,7 @@ export class WebhookService {
     return this.endpointRepo.save(endpoint);
   }
 
-  async dispatch(
-    eventType: string,
-    payload: any,
-    userId: string,
-  ): Promise<void> {
+  async dispatch(eventType: string, data: any, userId: string): Promise<void> {
     const endpoints = await this.endpointRepo.find({
       where: { userId, isActive: true },
     });
@@ -68,6 +65,13 @@ export class WebhookService {
     const relevantEndpoints = endpoints.filter(
       (e) => e.events.includes(eventType) || e.events.includes('*'),
     );
+
+    const payload = {
+      id: crypto.randomUUID(),
+      event: eventType,
+      data,
+      timestamp: new Date().toISOString(),
+    };
 
     for (const endpoint of relevantEndpoints) {
       const delivery = this.deliveryRepo.create({
@@ -184,6 +188,58 @@ export class WebhookService {
       where: { endpointId },
       order: { createdAt: 'DESC' },
       take: 100,
+    });
+  }
+
+  async testEndpoint(endpointId: string, userId: string): Promise<void> {
+    const endpoint = await this.endpointRepo.findOne({
+      where: { id: endpointId, userId },
+    });
+    if (!endpoint) {
+      throw new BadRequestException('Endpoint not found');
+    }
+
+    const payload = {
+      id: crypto.randomUUID(),
+      event: 'ping',
+      data: { message: 'Test ping from NexaFX' },
+      timestamp: new Date().toISOString(),
+    };
+
+    const delivery = this.deliveryRepo.create({
+      endpointId: endpoint.id,
+      eventType: 'ping',
+      payload,
+      attemptCount: 0,
+    });
+    await this.deliveryRepo.save(delivery);
+
+    this.executeDelivery(delivery, endpoint).catch((err) => {
+      this.logger.error(`Test delivery failed: ${err.message}`);
+    });
+  }
+
+  async redeliver(
+    endpointId: string,
+    deliveryId: string,
+    userId: string,
+  ): Promise<void> {
+    const endpoint = await this.endpointRepo.findOne({
+      where: { id: endpointId, userId },
+    });
+    if (!endpoint) {
+      throw new BadRequestException('Endpoint not found');
+    }
+
+    const delivery = await this.deliveryRepo.findOne({
+      where: { id: deliveryId, endpointId },
+    });
+    if (!delivery) {
+      throw new BadRequestException('Delivery not found');
+    }
+
+    this.executeDelivery(delivery, endpoint).catch((err) => {
+      this.logger.error(`Redelivery failed: ${err.message}`);
     });
   }
 }

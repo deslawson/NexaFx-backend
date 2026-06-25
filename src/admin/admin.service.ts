@@ -74,7 +74,7 @@ export class AdminService {
     private readonly auditLogRepository: Repository<AuditLog>,
     private readonly auditLogsService: AuditLogsService,
     private readonly transactionLimitService: TransactionLimitService,
-  ) {}
+  ) { }
 
   async listTransactionLimits() {
     return this.transactionLimitService.listLimits();

@@ -354,7 +354,7 @@ export class AdminController {
     if (cached) {
       return cached;
     }
-    const stats = await this.adminService.getPlatformMetrics({});
+    const stats = await this.adminService.getStats();
     await this.redisService.set(cacheKey, stats, 300); // 5m TTL
     return stats;
   }

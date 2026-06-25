@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TerminusModule } from '@nestjs/terminus';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
+import { HealthModule } from './health/health.module';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { CurrenciesModule } from './currencies/currencies.module';
@@ -41,18 +42,24 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validationSchema: envValidationSchema,
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
     }),
-    ScheduleModule.forRoot(),
+    TerminusModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         synchronize:
-          process.env.NODE_ENV !== 'production' &&
-          process.env.NODE_ENV !== 'staging',
+          configService.get<string>('NODE_ENV') !== 'production' &&
+          configService.get<string>('NODE_ENV') !== 'staging',
         ssl:
-          process.env.NODE_ENV === 'production'
+          configService.get<string>('NODE_ENV') === 'production'
             ? { rejectUnauthorized: false }
             : false,
         autoLoadEntities: true,
@@ -74,40 +81,8 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     ExchangeRatesModule,
     GatewaysModule,
     HealthModule,
-    AuditLogsModule,
-    NotificationsModule,
-    FirebaseModule,
-    TransactionsModule,
-    ReferralsModule,
-    BeneficiariesModule,
-    KycModule,
-    ScheduledJobsModule,
-    ReceiptsModule,
-    FeesModule,
-    PushNotificationsModule,
-    // Rate alerts: user-configured exchange rate notifications
-    RateAlertsModule,
-    AdminModule,
-    SuperAdminModule,
-    // DAO module provides Stellar Soroban contract interaction for reward distribution
-    DaoModule,
-    GraphQLApiModule,
-    WebhooksModule,
-    WalletsModule,
-    LedgerModule,
-    UsersModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: PlanThrottlerGuard,
-    },
-  ],
+  providers: [],
 })
 export class AppModule {}

@@ -120,13 +120,17 @@ export class WebhookService {
           : JSON.stringify(response.data);
       delivery.deliveredAt = new Date();
       delivery.nextRetryAt = null;
-    } catch (error) {
-      delivery.responseStatus = error.response?.status || 0;
-      delivery.responseBody = error.response?.data
-        ? typeof error.response.data === 'string'
-          ? error.response.data
-          : JSON.stringify(error.response.data)
-        : error.message;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const response = (error as any)?.response;
+      const responseData = response?.data;
+
+      delivery.responseStatus = response?.status || 0;
+      delivery.responseBody = responseData
+        ? typeof responseData === 'string'
+          ? responseData
+          : JSON.stringify(responseData)
+        : err.message;
 
       if (delivery.attemptCount < this.MAX_ATTEMPTS) {
         const delayMinutes = this.RETRY_INTERVALS[delivery.attemptCount - 1];

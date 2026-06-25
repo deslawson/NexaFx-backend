@@ -11,11 +11,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, Repository } from 'typeorm';
 import {
-  Operation,
-  Asset,
-  Transaction as StellarTransaction,
-} from 'stellar-sdk';
-import {
   Transaction,
   TransactionStatus,
   TransactionType,
@@ -242,31 +237,17 @@ export class TransactionsService {
         createDepositDto.walletId,
       );
 
-      const paymentOperation = Operation.payment({
-        destination: destinationAddress,
-        asset: Asset.native(),
-        amount: amount.toString(),
-      });
-
-      const stellarTx = await this.stellarService.createTransaction({
-        sourcePublicKey: sourceAddress,
-        operations: [paymentOperation],
-        memo: `DEPOSIT-${transaction.id}`,
-      });
-
       const secretKey = await this.getStellarSecretKey();
+      const paymentResult = await this.stellarService.sendPayment(
+        secretKey,
+        destinationAddress,
+        amount.toString(),
+        `DEPOSIT-${transaction.id}`,
+        userId,
+      );
 
-      const signedTx: StellarTransaction =
-        await this.stellarService.signTransaction(stellarTx, secretKey);
-
-      const rawResult: unknown =
-        await this.stellarService.submitTransaction(signedTx);
-
-      if (!isStellarSubmitResult(rawResult)) {
-        throw new Error('Unexpected response shape from Stellar submit');
-      }
-
-      transaction.txHash = rawResult.hash;
+      transaction.txHash = paymentResult.hash;
+      transaction.stellarTxHash = paymentResult.hash;
       await this.transactionRepository.save(transaction);
 
       try {
@@ -454,39 +435,21 @@ export class TransactionsService {
         },
       );
 
-      const sourceAddress = await this.getUserStellarAddress(
-        userId,
-        createWithdrawalDto.walletId,
-      );
-
-      const paymentOperation = Operation.payment({
-        destination: destinationAddress,
-        asset: Asset.native(),
-        amount: amount.toString(),
-      });
-
-      const stellarTx = await this.stellarService.createTransaction({
-        sourcePublicKey: sourceAddress,
-        operations: [paymentOperation],
-        memo: `WITHDRAW-${transaction.id}`,
-      });
-
       const secretKey = await this.getUserStellarSecretKey(
         userId,
         createWithdrawalDto.walletId,
       );
 
-      const signedTx: StellarTransaction =
-        await this.stellarService.signTransaction(stellarTx, secretKey);
+      const paymentResult = await this.stellarService.sendPayment(
+        secretKey,
+        destinationAddress,
+        amount.toString(),
+        `WITHDRAW-${transaction.id}`,
+        userId,
+      );
 
-      const rawResult: unknown =
-        await this.stellarService.submitTransaction(signedTx);
-
-      if (!isStellarSubmitResult(rawResult)) {
-        throw new Error('Unexpected response shape from Stellar submit');
-      }
-
-      transaction.txHash = rawResult.hash;
+      transaction.txHash = paymentResult.hash;
+      transaction.stellarTxHash = paymentResult.hash;
       await this.updateUserBalance(userId, currency, -amount);
 
       if (beneficiaryId) {
@@ -601,12 +564,9 @@ export class TransactionsService {
     }
 
     // 4. Find Best Path
-    const fromAsset = this.stellarService['getAsset']
-      ? (this.stellarService as any).getAsset(fromCurrency)
-      : this.getAssetHelper(fromCurrency);
-    const toAsset = this.stellarService['getAsset']
-      ? (this.stellarService as any).getAsset(toCurrency)
-      : this.getAssetHelper(toCurrency);
+    const fromAsset =
+      this.stellarService.getAssetWithDefaultIssuer(fromCurrency);
+    const toAsset = this.stellarService.getAssetWithDefaultIssuer(toCurrency);
 
     const paths = await this.stellarService.findBestPath(
       fromAsset,
@@ -685,8 +645,8 @@ export class TransactionsService {
           destAsset: toAsset,
           destAmount: destinationAmount.toString(),
           destination: destinationAddress,
-          path: bestPath.path.map(
-            (p) => new Asset(p.asset_code, p.asset_issuer),
+          path: bestPath.path.map((p) =>
+            this.stellarService.getAsset(p.asset_code, p.asset_issuer),
           ),
           mode: 'strict-send',
           slippageTolerance,
@@ -710,6 +670,7 @@ export class TransactionsService {
         }
 
         transaction.txHash = rawResult.hash;
+        transaction.stellarTxHash = rawResult.hash;
         transaction.status = TransactionStatus.SUCCESS;
         await this.transactionRepository.save(transaction);
 
@@ -772,14 +733,8 @@ export class TransactionsService {
     );
   }
 
-  private getAssetHelper(code: string): Asset {
-    if (code === 'XLM') return Asset.native();
-    // In a real app, you'd fetch the issuer from the database or config
-    // Using a default issuer for demonstration as seen in the original code
-    return new Asset(
-      code,
-      'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335XPB7X3NCQXMK3SBEG3CIFE7G',
-    );
+  private getAssetHelper(code: string) {
+    return this.stellarService.getAssetWithDefaultIssuer(code);
   }
 
   private swapPreviewCache = new Map<string, { data: any; expiry: number }>();

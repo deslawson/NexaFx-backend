@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,7 +7,11 @@ import { ThrottlerStorageRedisService } from 'nestjs-throttler-storage-redis';
 import * as Joi from 'joi';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import Redis from 'ioredis';
+import { TerminusModule } from '@nestjs/terminus';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
+import { HealthModule } from './health/health.module';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { CurrenciesModule } from './currencies/currencies.module';
@@ -38,6 +41,7 @@ import { WalletsModule } from './wallets/wallets.module';
 import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
+import { StellarModule } from './modules/stellar/stellar.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RedisModule } from './modules/redis/redis.module';
 import { REDIS_CLIENT } from './modules/redis/redis.constants';
@@ -88,16 +92,24 @@ import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
     }),
     QueuesModule,
     ScheduleModule.forRoot(),
+      validationSchema: envValidationSchema,
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
+    }),
+    TerminusModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         synchronize:
-          process.env.NODE_ENV !== 'production' &&
-          process.env.NODE_ENV !== 'staging',
+          configService.get<string>('NODE_ENV') !== 'production' &&
+          configService.get<string>('NODE_ENV') !== 'staging',
         ssl:
-          process.env.NODE_ENV === 'production'
+          configService.get<string>('NODE_ENV') === 'production'
             ? { rejectUnauthorized: false }
             : false,
         autoLoadEntities: true,
@@ -120,33 +132,12 @@ import { IpBlocklistGuard } from './modules/ip-blocklist/ip-blocklist.guard';
     }),
     MailModule,
     CommonModule,
+    StellarModule,
     AuthModule,
     CurrenciesModule,
     ExchangeRatesModule,
     GatewaysModule,
     HealthModule,
-    AuditLogsModule,
-    NotificationsModule,
-    FirebaseModule,
-    TransactionsModule,
-    ReferralsModule,
-    BeneficiariesModule,
-    KycModule,
-    ScheduledJobsModule,
-    ReceiptsModule,
-    FeesModule,
-    PushNotificationsModule,
-    // Rate alerts: user-configured exchange rate notifications
-    RateAlertsModule,
-    AdminModule,
-    SuperAdminModule,
-    // DAO module provides Stellar Soroban contract interaction for reward distribution
-    DaoModule,
-    GraphQLApiModule,
-    WebhooksModule,
-    WalletsModule,
-    LedgerModule,
-    UsersModule,
   ],
   controllers: [AppController],
   providers: [

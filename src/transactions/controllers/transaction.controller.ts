@@ -9,6 +9,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { Audit } from '../../common/decorators/audit.decorator';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -57,6 +58,7 @@ export class TransactionsController {
     description: 'Unauthorized - Invalid or missing JWT token',
   })
   @ApiResponse({ status: 500, description: 'Blockchain transaction failed' })
+  @Audit('transaction.created')
   async createDeposit(
     @Request() req,
     @Body() createDepositDto: CreateDepositDto,
@@ -85,6 +87,7 @@ export class TransactionsController {
     description: 'Unauthorized - Invalid or missing JWT token',
   })
   @ApiResponse({ status: 500, description: 'Blockchain transaction failed' })
+  @Audit('transaction.created')
   async createWithdrawal(
     @Request() req,
     @Body() createWithdrawalDto: CreateWithdrawalDto,
@@ -113,6 +116,7 @@ export class TransactionsController {
     description: 'Unauthorized - Invalid or missing JWT token',
   })
   @ApiResponse({ status: 500, description: 'Blockchain transaction failed' })
+  @Audit('transaction.created')
   async createSwap(
     @Request() req,
     @Body() createSwapDto: CreateSwapDto,
@@ -260,6 +264,7 @@ export class TransactionsController {
     description: 'Forbidden - Transaction does not belong to the user',
   })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
+  @Audit('transaction.cancelled')
   async cancelTransaction(
     @Param('id') id: string,
     @Request() req,

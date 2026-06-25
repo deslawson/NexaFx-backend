@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TerminusModule } from '@nestjs/terminus';
 import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { HealthModule } from './health/health.module';
@@ -34,10 +37,13 @@ import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
 import { StellarModule } from './modules/stellar/stellar.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
+    StorageModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -66,15 +72,12 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService): ThrottlerModuleOptions => ({
-        throttlers: [
-          {
-            name: 'default',
-            ttl: (configService.get<number>('THROTTLE_TTL') ?? 60) * 1000,
-            limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
-          },
-        ],
-      }),
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: (configService.get<number>('THROTTLE_TTL') ?? 60) * 1000,
+          limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
+        },
+      ],
       inject: [ConfigService],
     }),
     CommonModule,
@@ -84,8 +87,43 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     ExchangeRatesModule,
     GatewaysModule,
     HealthModule,
+    AuditLogsModule,
+    NotificationsModule,
+    FirebaseModule,
+    TransactionsModule,
+    ReferralsModule,
+    BeneficiariesModule,
+    KycModule,
+    ScheduledJobsModule,
+    ReceiptsModule,
+    FeesModule,
+    PushNotificationsModule,
+    RateAlertsModule,
+    AdminModule,
+    SuperAdminModule,
+    DaoModule,
+    GraphQLApiModule,
+    WebhooksModule,
+    WalletsModule,
+    LedgerModule,
+    UsersModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
-  providers: [],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PlanThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule { }

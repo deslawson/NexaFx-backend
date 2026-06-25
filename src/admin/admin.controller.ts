@@ -11,6 +11,7 @@ import {
   Res,
   BadRequestException,
 } from '@nestjs/common';
+import { Audit } from '../common/decorators/audit.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -42,6 +43,8 @@ import {
 } from './dto/transaction-limit.dto';
 import { Response } from 'express';
 import { join } from 'path';
+import { AdminAuditLogsQueryDto } from './dto/admin-audit-logs-query.dto';
+import { AdminAuditLogsExportQueryDto } from './dto/admin-audit-logs-export-query.dto';
 import { UserKycTier } from '../users/user.entity';
 
 @ApiTags('Admin')
@@ -101,6 +104,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/role')
+  @Audit('admin.role_change')
   @ApiOperation({ summary: 'Update user role (Admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User UUID' })
   @ApiBody({ type: UpdateUserRoleDto })
@@ -135,6 +139,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/suspend')
+  @Audit('admin.user_deactivation')
   @ApiOperation({ summary: 'Suspend user account (Admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'User suspended successfully' })
@@ -336,133 +341,30 @@ export class AdminController {
     });
   }
 
-  // ── KYC Admin Endpoints ──────────────────────────────────────────────
+  @Get('stats')
+  @ApiOperation({ summary: 'Get platform stats (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Stats retrieved successfully' })
+  async getStats() {
+    return this.adminService.getStats();
+  }
 
-  @Get('kyc')
-  @ApiOperation({
-    summary: 'Get KYC submission queue (Admin only)',
-    description: 'Paginated list of KYC submissions, filterable by status.',
-  })
-  @ApiQuery({
-    name: 'status',
-    enum: KycStatus,
-    required: false,
-    description: 'Filter by KYC status',
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Page number (default: 1)',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Items per page (default: 20)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'KYC queue retrieved successfully',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  async getKycQueue(
-    @Query('status') status?: KycStatus,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+  @Get('audit-logs')
+  @ApiOperation({ summary: 'Get audit logs (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
+  async getAuditLogs(@Query() query: AdminAuditLogsQueryDto) {
+    return this.adminService.getAdminAuditLogs(query);
+  }
+
+  @Get('audit-logs/export')
+  @ApiOperation({ summary: 'Export audit logs to CSV (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Streaming CSV export started' })
+  async exportAuditLogs(
+    @Query() query: AdminAuditLogsExportQueryDto,
+    @Res() res: Response,
   ) {
-    // Validate status is a valid KycStatus if provided
-    if (status && !Object.values(KycStatus).includes(status)) {
-      throw new BadRequestException(`Invalid status: ${status}`);
+    if (query.format !== 'csv') {
+      throw new BadRequestException('Unsupported format. Only csv is supported.');
     }
-    return this.kycService.getKycQueue(status, Number(page), Number(limit));
-  }
-
-  @Get('kyc/:id')
-  @ApiOperation({
-    summary: 'Review a single KYC submission (Admin only)',
-    description:
-      'Get full details of a KYC submission including document URLs.',
-  })
-  @ApiParam({
-    name: 'id',
-    type: String,
-    description: 'KYC record ID',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'KYC submission details retrieved successfully',
-  })
-  @ApiResponse({ status: 404, description: 'KYC record not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  async getKycById(@Param('id') id: string) {
-    return this.kycService.getKycById(id);
-  }
-
-  @Patch('kyc/:id/approve')
-  @ApiOperation({
-    summary: 'Approve a KYC submission (Admin only)',
-    description:
-      'Sets KYC status to APPROVED, updates user tier, sends approval email and notification.',
-  })
-  @ApiParam({
-    name: 'id',
-    type: String,
-    description: 'KYC record ID',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'KYC approved successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'KYC already reviewed or not pending',
-  })
-  @ApiResponse({ status: 404, description: 'KYC record not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  async approveKyc(
-    @Param('id') id: string,
-    @CurrentUser() admin: { userId: string },
-  ) {
-    return this.kycService.approveKyc(id, admin.userId);
-  }
-
-  @Patch('kyc/:id/reject')
-  @ApiOperation({
-    summary: 'Reject a KYC submission (Admin only)',
-    description:
-      'Sets KYC status to REJECTED or RESUBMISSION_REQUIRED, sends rejection email with reason and notification.',
-  })
-  @ApiParam({
-    name: 'id',
-    type: String,
-    description: 'KYC record ID',
-  })
-  @ApiBody({ type: RejectKycDto })
-  @ApiResponse({
-    status: 200,
-    description: 'KYC rejected successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'KYC already reviewed or not pending',
-  })
-  @ApiResponse({ status: 404, description: 'KYC record not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  async rejectKyc(
-    @Param('id') id: string,
-    @Body() dto: RejectKycDto,
-    @CurrentUser() admin: { userId: string },
-  ) {
-    return this.kycService.rejectKyc(
-      id,
-      admin.userId,
-      dto.reason,
-      dto.requireResubmission ?? false,
-    );
+    return this.adminService.streamAuditLogsCsv(res, query);
   }
 }

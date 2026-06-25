@@ -207,9 +207,9 @@ export class AccountDeletionService {
         {
           fullName: 'DELETED',
           documentNumber: 'DELETED',
-          documentFrontUrl: null as any,
-          documentBackUrl: null as any,
-          selfieUrl: null as any,
+          documentFrontKey: null as any,
+          documentBackKey: null as any,
+          selfieKey: null as any,
           rejectionReason: 'Account deleted',
           status: 'rejected' as any,
         },
@@ -346,9 +346,9 @@ export class AccountDeletionService {
         {
           fullName: 'DELETED',
           documentNumber: 'DELETED',
-          documentFrontUrl: null as any,
-          documentBackUrl: null as any,
-          selfieUrl: null as any,
+          documentFrontKey: null as any,
+          documentBackKey: null as any,
+          selfieKey: null as any,
           rejectionReason: 'Account deleted',
           status: 'rejected' as any,
         },
@@ -368,7 +368,7 @@ export class AccountDeletionService {
       await queryRunner.manager.delete(Notification, { userId });
 
       // Delete audit logs
-      await queryRunner.manager.delete(AuditLog, { userId });
+      await queryRunner.manager.delete(AuditLog, { actorId: userId });
 
       // Delete price alerts
       await queryRunner.manager.delete('rate_alerts', { userId });

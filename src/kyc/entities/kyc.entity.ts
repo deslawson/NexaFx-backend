@@ -33,7 +33,7 @@ export class KycRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // 🔥 Proper relation
+  // Proper relation
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: User;
@@ -72,14 +72,17 @@ export class KycRecord {
   @Column()
   documentNumber: string;
 
-  @Column()
-  documentFrontUrl: string;
+  /** Storage key returned by StorageService.upload() — never a URL or local path */
+  @Column({ name: 'documentFrontKey' })
+  documentFrontKey: string;
 
-  @Column({ nullable: true })
-  documentBackUrl: string;
+  /** Storage key for the back of the document (optional) */
+  @Column({ name: 'documentBackKey', nullable: true })
+  documentBackKey: string;
 
-  @Column()
-  selfieUrl: string;
+  /** Storage key for the selfie image */
+  @Column({ name: 'selfieKey' })
+  selfieKey: string;
 
   @Column({ nullable: true })
   rejectionReason: string;

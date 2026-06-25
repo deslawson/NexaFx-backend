@@ -1,6 +1,6 @@
-import { Module, BadRequestException } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MulterModule } from '@nestjs/platform-express';
 import { KycService } from './kyc.service';
 import { KycController } from './kyc.controller';
 import { KycRecord } from './entities/kyc.entity';
@@ -8,24 +8,7 @@ import { KycEmailService } from './kyc-email.service';
 import { KycGuard } from '../common/guards/kyc.guard';
 import { User } from '../users/user.entity';
 import { WebhooksModule } from '../webhooks/webhooks.module';
-import { MulterModule } from '@nestjs/platform-express';
-import { diskStorage, StorageEngine } from 'multer';
-import { join } from 'path';
-import * as fs from 'fs';
-import type { Request } from 'express';
-import { randomUUID } from 'crypto';
-import { FirebaseModule } from '../firebase/firebase.module';
-
-// runtime type guard to satisfy strict ESLint rules about unsafe member access
-function isMulterFile(x: unknown): x is Express.Multer.File {
-  if (typeof x !== 'object' || x === null) return false;
-  const rec = x as Record<string, unknown>;
-  return (
-    typeof rec.originalname === 'string' && typeof rec.mimetype === 'string'
-  );
-}
-
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+import { StorageModule } from '../modules/storage/storage.module';
 
 // Shared destination builder
 function buildDiskDestination(
@@ -94,48 +77,11 @@ function fileFilter(
   imports: [
     TypeOrmModule.forFeature([KycRecord, User]),
     WebhooksModule,
-    FirebaseModule,
-    MulterModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const storageProvider =
-          configService.get<string>('STORAGE_PROVIDER') ?? 'local';
-
-        // When STORAGE_PROVIDER=s3, you can swap to S3-compatible storage here.
-        // Requires: npm install multer-s3 @aws-sdk/client-s3
-        // Then import:
-        //   import multerS3 from 'multer-s3';
-        //   import { S3Client } from '@aws-sdk/client-s3';
-        // And return:
-        //   storage: multerS3({
-        //     s3: new S3Client({
-        //       region: configService.get('AWS_REGION'),
-        //       credentials: { ... }
-        //     }),
-        //     bucket: configService.get('S3_BUCKET'),
-        //     key: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-        //   }),
-        const useS3 = storageProvider === 's3';
-
-        const storage: StorageEngine = useS3
-          ? // Fallback to disk storage until S3 is configured
-            diskStorage({
-              destination: buildDiskDestination,
-              filename: buildFilename,
-            })
-          : diskStorage({
-              destination: buildDiskDestination,
-              filename: buildFilename,
-            });
-
-        return {
-          storage,
-          fileFilter,
-          limits: { fileSize: 5 * 1024 * 1024 },
-        };
-      },
-      inject: [ConfigService],
+    MulterModule.register({
+      storage: undefined, // defaults to memoryStorage
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB hard limit
     }),
+    StorageModule,
   ],
   controllers: [KycController],
   providers: [KycService, KycEmailService, KycGuard],

@@ -6,15 +6,17 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFiles,
-  Req,
   BadRequestException,
+  UsePipes,
 } from '@nestjs/common';
+import { Audit } from '../common/decorators/audit.decorator';
 import {
   ApiBearerAuth,
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { KycService } from './kyc.service';
 import { SubmitKycDto } from './dtos/kyc-submit';
@@ -26,8 +28,7 @@ import {
   CurrentUserPayload,
 } from '../auth/decorators/current-user.decorator';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { Request } from 'express';
-import { join } from 'path';
+import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 
 @ApiTags('KYC')
 @Controller('kyc')
@@ -38,6 +39,7 @@ export class KycController {
 
   @Post('submit')
   @ApiOperation({ summary: 'Submit KYC verification' })
+  @ApiConsumes('multipart/form-data')
   @ApiBody({ type: SubmitKycDto })
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -46,96 +48,64 @@ export class KycController {
       { name: 'selfie', maxCount: 1 },
     ]),
   )
-  @ApiResponse({
-    status: 201,
-    description: 'KYC submission successful',
-    type: KycRecord,
-  })
+  @UsePipes()
+  @ApiResponse({ status: 201, description: 'KYC submission successful' })
   @ApiResponse({
     status: 400,
-    description: 'Invalid data, wrong file type/size, or existing submission',
+    description: 'Invalid data, file type, or existing submission',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized',
-  })
+  @Audit('kyc.submission')
+  @ApiResponse({ status: 422, description: 'File failed virus scan' })
   async submitKyc(
     @CurrentUser() user: CurrentUserPayload,
-    @UploadedFiles()
-    files: Partial<
-      Record<
-        'documentFront' | 'documentBack' | 'selfie',
-        { filename: string }[]
-      >
-    >,
+    @UploadedFiles(new FileValidationPipe())
+    files: {
+      documentFront?: Express.Multer.File[];
+      documentBack?: Express.Multer.File[];
+      selfie?: Express.Multer.File[];
+    },
     @Body() dto: SubmitKycDto,
-    @Req() req: Request,
   ) {
-    const anyReq = req as unknown as Record<string, unknown> & {
-      fileValidationError?: string;
-      kycUploadVersion?: string;
-    };
-    if (anyReq.fileValidationError) {
-      throw new BadRequestException(anyReq.fileValidationError);
-    }
-
-    // Required files
-    if (!files?.documentFront || files.documentFront.length === 0) {
+    if (!files?.documentFront?.length) {
       throw new BadRequestException('documentFront file is required');
     }
-
-    if (!files?.selfie || files.selfie.length === 0) {
+    if (!files?.selfie?.length) {
       throw new BadRequestException('selfie file is required');
     }
 
-    // Compute stored relative paths
-    const version = anyReq.kycUploadVersion ?? '';
-    const userId = user.userId;
-    const base = join('uploads', 'kyc', userId, version);
-
-    const documentFrontUrl: string | undefined =
-      files.documentFront && files.documentFront[0]
-        ? join(base, files.documentFront[0].filename)
-        : undefined;
-
-    const documentBackUrl: string | undefined =
-      files.documentBack && files.documentBack[0]
-        ? join(base, files.documentBack[0].filename)
-        : undefined;
-
-    const selfieUrl: string | undefined =
-      files.selfie && files.selfie[0]
-        ? join(base, files.selfie[0].filename)
-        : undefined;
-
-    const payload: SubmitKycDto & {
-      documentFrontUrl?: string;
-      documentBackUrl?: string;
-      selfieUrl?: string;
-    } = {
-      ...dto,
-      documentFrontUrl,
-      documentBackUrl,
-      selfieUrl,
-    };
-
-    return this.kycService.submitKyc(user.userId, payload);
+    return this.kycService.submitKyc(user.userId, dto, {
+      documentFront: files.documentFront[0],
+      documentBack: files.documentBack?.[0],
+      selfie: files.selfie[0],
+    });
   }
 
-  @Post('resubmit')
-  @ApiOperation({
-    summary: 'Resubmit KYC verification',
+  @Get('status')
+  @ApiOperation({ summary: "Get user's KYC status" })
+  @ApiResponse({ status: 200, description: 'KYC status retrieved' })
+  async getKycStatus(@CurrentUser() user: CurrentUserPayload) {
+    return this.kycService.getKycStatus(user.userId);
+  }
+
+  @Get('pending')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get pending KYC submissions with signed review URLs (Admin)' })
+  @ApiResponse({
+    status: 200,
     description:
-      'Resubmit KYC documents. Only allowed when status is RESUBMISSION_REQUIRED.',
+      'List of pending KYC submissions with temporary signed document URLs',
   })
-  @ApiBody({ type: ResubmitKycDto })
-  @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'documentFront', maxCount: 1 },
-      { name: 'documentBack', maxCount: 1 },
-      { name: 'selfie', maxCount: 1 },
-    ]),
-  )
+  async getPendingSubmissions() {
+    return this.kycService.listPendingKycWithUrls();
+  }
+
+  @Patch(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Approve or reject a KYC submission (Admin)' })
+  @ApiParam({ name: 'id', type: String, description: 'KYC record ID' })
+  @ApiBody({ type: ApproveKycDto })
   @ApiResponse({
     status: 201,
     description: 'KYC resubmission successful',
@@ -148,69 +118,24 @@ export class KycController {
     status: 401,
     description: 'Unauthorized',
   })
-  async resubmitKyc(
-    @CurrentUser() user: CurrentUserPayload,
-    @UploadedFiles()
-    files: Partial<
-      Record<
-        'documentFront' | 'documentBack' | 'selfie',
-        { filename: string }[]
-      >
-    >,
-    @Body() dto: ResubmitKycDto,
-    @Req() req: Request,
-  ) {
-    const anyReq = req as unknown as Record<string, unknown> & {
-      fileValidationError?: string;
-      kycUploadVersion?: string;
-    };
-    if (anyReq.fileValidationError) {
-      throw new BadRequestException(anyReq.fileValidationError);
-    }
-
-    if (!files?.documentFront || files.documentFront.length === 0) {
-      throw new BadRequestException('documentFront file is required');
-    }
-
-    if (!files?.selfie || files.selfie.length === 0) {
-      throw new BadRequestException('selfie file is required');
-    }
-
-    const version = anyReq.kycUploadVersion ?? '';
-    const userId = user.userId;
-    const base = join('uploads', 'kyc', userId, version);
-
-    const documentFrontUrl: string | undefined =
-      files.documentFront && files.documentFront[0]
-        ? join(base, files.documentFront[0].filename)
-        : undefined;
-
-    const documentBackUrl: string | undefined =
-      files.documentBack && files.documentBack[0]
-        ? join(base, files.documentBack[0].filename)
-        : undefined;
-
-    const selfieUrl: string | undefined =
-      files.selfie && files.selfie[0]
-        ? join(base, files.selfie[0].filename)
-        : undefined;
-
-    const payload: ResubmitKycDto & {
-      documentFrontUrl?: string;
-      documentBackUrl?: string;
-      selfieUrl?: string;
-    } = {
-      ...dto,
-      documentFrontUrl,
-      documentBackUrl,
-      selfieUrl,
-    };
-
-    return this.kycService.resubmitKyc(user.userId, payload);
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  @Audit('kyc.review')
+  async approveKyc(
+    @Param('id') id: string,
+    @Body() approveKycDto: ApproveKycDto,
+  ): Promise<KycRecord> {
+    return this.kycService.approveKyc(id, approveKycDto);
   }
 
-  @Get('status')
-  @ApiOperation({ summary: "Get user's KYC status" })
+  @Patch(':id/review')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Review and decide on a KYC submission (Admin)' })
+  @ApiParam({ name: 'id', type: String, description: 'KYC record ID' })
+  @ApiBody({ type: ReviewKycDto })
   @ApiResponse({
     status: 200,
     description: 'KYC status retrieved successfully',
@@ -220,7 +145,12 @@ export class KycController {
     status: 401,
     description: 'Unauthorized',
   })
-  async getKycStatus(@CurrentUser() user: CurrentUserPayload) {
-    return this.kycService.getKycStatus(user.userId);
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  @Audit('kyc.review')
+  async reviewKyc(@Param('id') id: string, @Body() dto: ReviewKycDto) {
+    return this.kycService.reviewKyc(id, dto.decision, dto.reason);
   }
 }

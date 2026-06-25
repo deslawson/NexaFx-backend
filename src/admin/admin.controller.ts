@@ -19,8 +19,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
+import { KycService } from '../kyc/kyc.service';
+import { KycStatus } from '../kyc/entities/kyc.entity';
+import { RejectKycDto } from '../kyc/dtos/kyc-reject';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -49,7 +53,10 @@ import { UserKycTier } from '../users/user.entity';
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly kycService: KycService,
+  ) {}
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get platform metrics (Admin only)' })
@@ -289,6 +296,8 @@ export class AdminController {
   ) {
     return this.adminService.patchTransactionLimit(tier, dto);
   }
+
+  // ── KYC File Serving (must be before kyc/:id to avoid route conflict) ──
 
   @Get('kyc-file/:userId/:version/:filename')
   @ApiOperation({ summary: 'Serve KYC uploaded file (Admin only)' })

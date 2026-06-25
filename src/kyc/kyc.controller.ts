@@ -2,8 +2,6 @@ import {
   Controller,
   Post,
   Body,
-  Param,
-  Patch,
   Get,
   UseGuards,
   UseInterceptors,
@@ -17,23 +15,18 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiParam,
   ApiBody,
   ApiConsumes,
 } from '@nestjs/swagger';
 import { KycService } from './kyc.service';
 import { SubmitKycDto } from './dtos/kyc-submit';
-import { ApproveKycDto } from './dtos/kyc-approve';
-import { ReviewKycDto } from './dtos/kyc-review';
+import { ResubmitKycDto } from './dtos/kyc-resubmit';
 import { KycRecord } from './entities/kyc.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 import {
   CurrentUser,
   CurrentUserPayload,
 } from '../auth/decorators/current-user.decorator';
-import { UserRole } from '../users/user.entity';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 
@@ -114,17 +107,12 @@ export class KycController {
   @ApiParam({ name: 'id', type: String, description: 'KYC record ID' })
   @ApiBody({ type: ApproveKycDto })
   @ApiResponse({
-    status: 200,
-    description: 'KYC status updated successfully',
-    type: KycRecord,
+    status: 201,
+    description: 'KYC resubmission successful',
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid KYC data or already processed',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'KYC record not found',
+    description: 'Not in RESUBMISSION_REQUIRED status, wrong file type/size',
   })
   @ApiResponse({
     status: 401,
@@ -150,16 +138,8 @@ export class KycController {
   @ApiBody({ type: ReviewKycDto })
   @ApiResponse({
     status: 200,
-    description: 'KYC reviewed successfully',
-    schema: { example: { message: 'KYC approved successfully' } },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid decision or KYC already reviewed',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'KYC record or user not found',
+    description: 'KYC status retrieved successfully',
+    type: 'object',
   })
   @ApiResponse({
     status: 401,

@@ -33,6 +33,7 @@ import {
 } from '../dtos/transaction-response.dto';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { KycGuard } from '../../common/guards/kyc.guard';
 import { UserRole } from '../../users/user.entity';
 
 @ApiTags('Transactions')
@@ -42,6 +43,7 @@ export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
   @Post('deposit')
+  @UseGuards(KycGuard)
   @ApiOperation({ summary: 'Initiate a deposit transaction' })
   @ApiBody({ type: CreateDepositDto })
   @ApiResponse({
@@ -70,6 +72,7 @@ export class TransactionsController {
   }
 
   @Post('withdraw')
+  @UseGuards(KycGuard)
   @ApiOperation({ summary: 'Initiate a withdrawal transaction' })
   @ApiBody({ type: CreateWithdrawalDto })
   @ApiResponse({
@@ -99,6 +102,7 @@ export class TransactionsController {
   }
 
   @Post('swap')
+  @UseGuards(KycGuard)
   @ApiOperation({ summary: 'Initiate a currency swap transaction' })
   @ApiBody({ type: CreateSwapDto })
   @ApiResponse({

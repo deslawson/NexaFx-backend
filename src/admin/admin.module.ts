@@ -18,6 +18,7 @@ import { AuditLog } from '../audit-logs/entities/audit-log.entity';
     AuditLogsModule,
     ReportsModule,
     TransactionLimitsModule,
+    KycModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

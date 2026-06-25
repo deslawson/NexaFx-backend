@@ -17,7 +17,8 @@ import { User } from '../../modules/users/entities/user.entity';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
-        const isProduction = configService.get<string>('NODE_ENV') === 'production';
+        const isProduction =
+          configService.get<string>('NODE_ENV') === 'production';
 
         if (!secret && isProduction) {
           throw new Error('JWT_SECRET is not configured');

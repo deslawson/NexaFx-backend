@@ -151,7 +151,10 @@ export class AccountDeletionService {
           metadata: { requestId, error: err.message },
         });
       } catch (notifyError: unknown) {
-        const notifyErr = notifyError instanceof Error ? notifyError : new Error(String(notifyError));
+        const notifyErr =
+          notifyError instanceof Error
+            ? notifyError
+            : new Error(String(notifyError));
         this.logger.error('Failed to send failure notification:', notifyErr);
       }
     }

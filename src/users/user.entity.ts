@@ -79,6 +79,10 @@ export class User {
   @Index()
   referralCode: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Index()
+  stripeCardholderId: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   @Index()
   referredBy: string | null;

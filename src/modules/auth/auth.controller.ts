@@ -28,12 +28,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({
-    default: {
-      ttl: 15 * 60 * 1000,
-      limit: 5,
-    },
-  })
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate a user and return JWT tokens' })
@@ -55,11 +50,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Invalidate the current refresh token' })
-  async logout(@Req() req: { user?: { sub?: string } }) {
+  async logout(
+    @Req() req: { user?: { sub?: string } },
+    @Body() dto?: Partial<RefreshTokenDto>,
+  ) {
     if (!req.user?.sub) {
       return { message: 'Logged out successfully' };
     }
 
-    return this.authService.logout(req.user.sub);
+    return this.authService.logout(req.user.sub, dto?.refreshToken);
   }
 }

@@ -18,7 +18,13 @@ import { MulterExceptionFilter } from './common/filters/multer-exception.filter'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import helmet from 'helmet';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import {createAdminQueueAuthMiddleware} from './modules/queues/admin-queue-auth.middleware';
+import { QueuesDashboardService } from './modules/queues/queues-dashboard.service';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { join } from 'path';
+import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -26,6 +32,9 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.use(helmet());
+
+  // Response compression
+  app.use(compression({ threshold: 1024 }));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -63,6 +72,18 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+
+  const jwtService = app.get(JwtService);
+  const configService = app.get(ConfigService);
+  const queuesDashboard = app.get(QueuesDashboardService);
+
+  app.use(
+    '/admin/queues',
+    createAdminQueueAuthMiddleware(jwtService, configService),
+    queuesDashboard.getRouter(),
+  );
+
+  // CORS
   app.enableCors({
     origin: origins.length ? origins : false,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],

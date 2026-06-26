@@ -5,7 +5,7 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import { Observable } from 'rxjs';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { Request } from 'express';
-import { firstValueFrom, Observable } from 'rxjs';
+import { isObservable, lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -24,9 +24,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     const result = super.canActivate(context);
-    if (result instanceof Observable) {
-      return firstValueFrom(result);
+    if (isObservable(result)) {
+      return lastValueFrom(result);
     }
+
     return result;
   }
 

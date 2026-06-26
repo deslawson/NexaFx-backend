@@ -25,4 +25,4 @@ import { BackupManifestService } from './services/backup-manifest.service';
   controllers: [AdminController],
   providers: [AdminService, BackupManifestService],
 })
-export class AdminModule {}
+export class AdminModule { }

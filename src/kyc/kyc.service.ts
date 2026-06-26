@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
   Inject,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -25,6 +26,7 @@ import {
   StorageService,
 } from '../modules/storage/storage.service';
 import { scanBuffer } from '../common/helpers/virus-scanner.helper';
+import { SanctionsService } from '../sanctions/sanctions.service';
 
 const SIGNED_URL_EXPIRY_SECONDS = 900;
 
@@ -43,6 +45,8 @@ export class KycService {
     private readonly webhookService: WebhookService,
     @Inject(STORAGE_SERVICE_TOKEN)
     private readonly storageService: StorageService,
+    @Optional()
+    private readonly sanctionsService?: SanctionsService,
   ) { }
 
   async submitKyc(
@@ -362,6 +366,13 @@ export class KycService {
       .dispatch('kyc.approved', kyc, user.id)
       .catch((err: Error) =>
         this.logger.error(`Webhook dispatch failed: ${err.message}`),
+      );
+
+    // Trigger sanctions screening asynchronously
+    this.sanctionsService
+      ?.screenUser(user.id)
+      .catch((err: Error) =>
+        this.logger.error(`Sanctions screening failed: ${err.message}`),
       );
 
     return {

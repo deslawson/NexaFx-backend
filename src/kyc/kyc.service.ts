@@ -332,9 +332,15 @@ export class KycService {
           user.fcmTokens,
           'KYC Approved',
           'Your identity verification has been approved. You now have higher transaction limits.',
+          { entity: 'KYC', kycStatus: 'approved' },
           {
-            entity: 'KYC',
-            kycStatus: 'approved',
+            notificationId: notificationPayload.id ?? '',
+            type: 'KYC_APPROVED',
+            deepLink: 'nexafx://kyc/status',
+            actionType: 'KYC_APPROVED',
+            resourceId: kycRecord.id,
+            resourceType: 'kyc',
+            timestamp: new Date().toISOString(),
           },
         )
         .catch((err: Error) =>
@@ -460,6 +466,15 @@ export class KycService {
           notificationPayload.title!,
           notificationPayload.message!,
           { entity: 'KYC', kycStatus: decision.toLowerCase() },
+          {
+            notificationId: notificationPayload.id ?? '',
+            type: 'KYC_REJECTED',
+            deepLink: 'nexafx://kyc/status',
+            actionType: 'KYC_REJECTED',
+            resourceId: kyc.id,
+            resourceType: 'kyc',
+            timestamp: new Date().toISOString(),
+          },
         )
         .catch((err: Error) =>
           this.logger.error(`Failed to send KYC FCM: ${err.message}`),

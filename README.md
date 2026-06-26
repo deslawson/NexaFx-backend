@@ -1,6 +1,77 @@
 # NexaFX Backend
 
+<div align="center">
+
+![CI/CD](https://github.com/Nexacore-Org/NexaFx-backend/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/codecov/c/github/Nexacore-Org/NexaFx-backend)
+![License](https://img.shields.io/github/license/Nexacore-Org/NexaFx-backend)
+![Node Version](https://img.shields.io/node/v/@nestjs/core)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+
+</div>
+
 **NexaFX** is a Web3-powered currency exchange platform that supports real-time fiat and crypto conversions. The backend is built using **NestJS** and interfaces with smart contracts written in **Rust** on the **Stellar network**.
+
+---
+
+## 🏗️ Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client
+        Web[Web App]
+        Mobile[Mobile App]
+        API[API Consumers]
+    end
+
+    subgraph Backend
+        Gateway[API Gateway]
+        Auth[Auth Module]
+        Users[Users Module]
+        Currencies[Currencies Module]
+        Transactions[Transactions Module]
+        ExchangeRates[Exchange Rates Module]
+        Admin[Admin Module]
+        Notifications[Notifications Module]
+    end
+
+    subgraph Database
+        PostgreSQL[(PostgreSQL)]
+        Redis[(Redis Cache)]
+    end
+
+    subgraph External
+        Stellar[Stellar Network]
+        Mailgun[Mailgun]
+        Firebase[Firebase]
+        RateProvider[Exchange Rate Provider]
+    end
+
+    Web --> Gateway
+    Mobile --> Gateway
+    API --> Gateway
+    
+    Gateway --> Auth
+    Gateway --> Users
+    Gateway --> Currencies
+    Gateway --> Transactions
+    Gateway --> ExchangeRates
+    Gateway --> Admin
+    Gateway --> Notifications
+    
+    Auth --> PostgreSQL
+    Users --> PostgreSQL
+    Currencies --> PostgreSQL
+    Transactions --> PostgreSQL
+    ExchangeRates --> Redis
+    Notifications --> PostgreSQL
+    
+    Transactions --> Stellar
+    Notifications --> Mailgun
+    Notifications --> Firebase
+    ExchangeRates --> RateProvider
+```
+
 
 ## 🚀 Features
 
@@ -75,24 +146,45 @@ nexafx-backend/
 
 ### Prerequisites
 
-- **Node.js**: v18+ (LTS recommended)
-- **PostgreSQL**: v12+ running locally or via Docker
-- **npm** or **yarn**
+- **Node.js**: v20+ (LTS recommended)
+- **Docker & Docker Compose**: For running PostgreSQL
+- **npm**: v9+ (comes with Node.js)
+- **Git**: For version control
 
-### 1. Clone the Repository
+### Quick Start (Automated)
+
+The fastest way to get started is using our automated setup script:
+
+```bash
+# Clone the repository
+git clone https://github.com/Nexacore-Org/NexaFx-backend.git
+cd NexaFx-backend
+
+# Run the setup script (does everything for you!)
+./scripts/setup-dev.sh
+
+# Start the application
+npm run start:dev
+```
+
+### Manual Setup
+
+If you prefer to set up manually:
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Nexacore-Org/NexaFx-backend.git
 cd NexaFx-backend
 ```
 
-### 2. Install Dependencies
+#### 2. Install Dependencies
 
 ```bash
-npm install
+npm ci
 ```
 
-### 3. Setup Environment Variables
+#### 3. Setup Environment Variables
 
 Copy the `.env.example` file and create a `.env` file:
 
@@ -102,45 +194,36 @@ cp .env.example .env
 
 Edit `.env` and configure your variables (see [Environment Variables](#-environment-variables) section below).
 
-### 4. Setup Database with TypeORM
-
-Initialize the PostgreSQL database and apply migrations:
+#### 4. Start Database with Docker
 
 ```bash
-# Ensure PostgreSQL is running and DATABASE_URL is configured in .env
-# TypeORM will auto-synchronize schema on startup if synchronize: true
+docker-compose up -d
+```
 
-# Create the database (first time only)
-npm run typeorm:db:create
+#### 5. Run Database Migrations
 
-# Run migrations
+```bash
 npm run typeorm:migration:run
-
-# OR generate a new migration after schema changes
-npm run typeorm:migration:generate -- src/migrations/my-migration-name
-
-# To revert the last migration
-npm run typeorm:migration:revert
 ```
 
-> **Note**: The application uses TypeORM with `autoLoadEntities: true`, which automatically loads all entity metadata. Ensure all `.entity.ts` files are properly decorated with `@Entity()`.
-
-### 5. Run the Application
+#### 6. Start the Application
 
 ```bash
-# Development (watch mode)
 npm run start:dev
-
-# Debug mode
-npm run start:debug
-
-# Production
-npm run build
-npm run start:prod
 ```
 
-The API will be available at `http://localhost:3000`
-API documentation: `http://localhost:3000/api/docs`
+---
+
+### Development Workflow
+
+- **API Docs**: Visit `http://localhost:3000/api/docs` for Swagger UI
+- **Health Check**: `http://localhost:3000/health`
+- **Run Tests**: `npm run test`
+- **Run Lint**: `npm run lint`
+- **Format Code**: `npm run format`
+
+
+
 
 ---
 

@@ -35,6 +35,7 @@ import { EscrowModule } from './escrow/escrow.module';
 import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
+import { LoansModule } from './loans/loans.module';
 
 @Module({
   imports: [
@@ -98,6 +99,7 @@ import { UsersModule } from './users/users.module';
     WalletsModule,
     LedgerModule,
     UsersModule,
+    LoansModule,
   ],
   controllers: [AppController],
   providers: [

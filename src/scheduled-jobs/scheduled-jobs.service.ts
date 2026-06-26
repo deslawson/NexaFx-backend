@@ -7,6 +7,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '../transactions/entities/transaction.entity';
+import { LoansService } from '../loans/loans.service';
 import { TransactionsService } from '../transactions/services/transaction.service';
 import { StellarService } from '../blockchain/stellar/stellar.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -58,6 +59,7 @@ export class ScheduledJobsService {
     private readonly ledgerVerificationService: LedgerVerificationService,
     private readonly analyticsService: AnalyticsService,
     private readonly redisService: RedisService,
+    private readonly loansService: LoansService,
   ) {
     // Truncate hostname to 255 characters to match DB column constraint
     this.instanceId = os.hostname().substring(0, 255);
@@ -803,6 +805,34 @@ export class ScheduledJobsService {
     } catch (error) {
       this.logger.error(
         '[Scheduled Job] Fatal error in idempotency records cleanup:',
+        error,
+      );
+    }
+  }
+
+  /**
+   * Daily loan repayment processing — auto-debits scheduled repayments and
+   * applies overdue penalties. Runs at midnight every day.
+   */
+  @Cron('0 0 0 * * *')
+  async processLoanRepayments(): Promise<void> {
+    this.logger.log('[Scheduled Job] Starting daily loan repayment processing');
+    try {
+      await this.loansService.processScheduledRepayments();
+      this.logger.log('[Scheduled Job] Scheduled repayments processed');
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Failed to process scheduled repayments:',
+        error,
+      );
+    }
+
+    try {
+      await this.loansService.applyOverduePenalties();
+      this.logger.log('[Scheduled Job] Overdue penalties applied');
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Failed to apply overdue penalties:',
         error,
       );
     }

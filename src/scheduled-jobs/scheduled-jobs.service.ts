@@ -26,6 +26,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { IdempotencyRecord } from '../common/entities/idempotency-record.entity';
 import { DataRequest } from '../users/entities/data-request.entity';
 import { DataSource } from 'typeorm';
+import { VaultsService } from '../vaults/vaults.service';
 
 @Injectable()
 export class ScheduledJobsService {
@@ -54,6 +55,7 @@ export class ScheduledJobsService {
     private readonly proposalService: ProposalService,
     private readonly auditLogsService: AuditLogsService,
     private readonly ledgerVerificationService: LedgerVerificationService,
+    private readonly vaultsService: VaultsService,
   ) {
     // Truncate hostname to 255 characters to match DB column constraint
     this.instanceId = os.hostname().substring(0, 255);
@@ -821,6 +823,48 @@ export class ScheduledJobsService {
     } catch (error) {
       this.logger.error(
         '[Scheduled Job] Fatal error in hard delete of expired accounts:',
+        error,
+      );
+    }
+  }
+
+  @Cron('5 0 * * *')
+  async accrueVaultInterest(): Promise<void> {
+    this.logger.log('[Scheduled Job] Starting vault interest accrual');
+    try {
+      await this.vaultsService.accrueInterest();
+      this.logger.log('[Scheduled Job] Vault interest accrual completed');
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Vault interest accrual failed:',
+        error,
+      );
+    }
+  }
+
+  @Cron('0 * * * *')
+  async processVaultMaturity(): Promise<void> {
+    this.logger.log('[Scheduled Job] Starting vault maturity check');
+    try {
+      await this.vaultsService.processMaturity();
+      this.logger.log('[Scheduled Job] Vault maturity check completed');
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Vault maturity check failed:',
+        error,
+      );
+    }
+  }
+
+  @Cron('0 6 * * *')
+  async processVaultAutoDeposits(): Promise<void> {
+    this.logger.log('[Scheduled Job] Starting vault auto-deposits');
+    try {
+      await this.vaultsService.processAutoDeposits();
+      this.logger.log('[Scheduled Job] Vault auto-deposits completed');
+    } catch (error) {
+      this.logger.error(
+        '[Scheduled Job] Vault auto-deposits failed:',
         error,
       );
     }

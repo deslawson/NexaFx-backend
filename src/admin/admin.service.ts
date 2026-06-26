@@ -50,6 +50,7 @@ import {
 import { UpdateUserPlanDto } from './dto/update-user-plan.dto';
 import { TransactionLimitService } from '../transactions/services/transaction-limit.service';
 import { UserKycTier } from '../users/user.entity';
+import { BackupManifestService } from './services/backup-manifest.service';
 import {
   PatchTransactionLimitDto,
   UpsertTransactionLimitDto,
@@ -74,7 +75,8 @@ export class AdminService {
     private readonly auditLogRepository: Repository<AuditLog>,
     private readonly auditLogsService: AuditLogsService,
     private readonly transactionLimitService: TransactionLimitService,
-  ) { }
+    private readonly backupManifestService: BackupManifestService,
+  ) {}
 
   async listTransactionLimits() {
     return this.transactionLimitService.listLimits();
@@ -822,5 +824,9 @@ export class AdminService {
     } finally {
       csvStream.end();
     }
+  }
+
+  async getRecentBackups() {
+    return this.backupManifestService.listRecentManifests(10);
   }
 }

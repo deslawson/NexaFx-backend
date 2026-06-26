@@ -366,6 +366,13 @@ export class AdminController {
     return this.adminService.getAdminAuditLogs(query);
   }
 
+  @Get('backups')
+  @ApiOperation({ summary: 'List recent backup manifests (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Returns last 10 backup manifests' })
+  async getBackups() {
+    return this.adminService.getRecentBackups();
+  }
+
   @Get('audit-logs/export')
   @ApiOperation({ summary: 'Export audit logs to CSV (Admin only)' })
   @ApiResponse({ status: 200, description: 'Streaming CSV export started' })

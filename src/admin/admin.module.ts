@@ -12,6 +12,7 @@ import { KycRecord } from '../kyc/entities/kyc.entity';
 import { RateAlert } from '../rate-alerts/entities/rate-alert.entity';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { KycModule } from '../kyc/kyc.module';
+import { BackupManifestService } from './services/backup-manifest.service';
 
 @Module({
   imports: [
@@ -22,6 +23,6 @@ import { KycModule } from '../kyc/kyc.module';
     KycModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, BackupManifestService],
 })
 export class AdminModule { }

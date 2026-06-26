@@ -6,8 +6,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
+import { GithubStrategy } from './strategies/github.strategy';
 import { OtpDeliveryService } from './email/otp-delivery.service';
 import { PasswordResetAttempt } from './entities/password-reset-attempt.entity';
+import { OAuthAccount } from './entities/oauth-account.entity';
 import { UsersModule } from '../users/users.module';
 import { OtpsModule } from '../otps/otps.module';
 import { TokensModule } from '../tokens/tokens.module';
@@ -31,7 +34,7 @@ type JwtExpiryValue = `${number}${'s' | 'm' | 'h' | 'd'}`;
     WalletsModule,
     MailModule,
     PassportModule,
-    TypeOrmModule.forFeature([PasswordResetAttempt]),
+    TypeOrmModule.forFeature([PasswordResetAttempt, OAuthAccount]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -55,7 +58,13 @@ type JwtExpiryValue = `${number}${'s' | 'm' | 'h' | 'd'}`;
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, OtpDeliveryService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    GoogleStrategy,
+    GithubStrategy,
+    OtpDeliveryService,
+  ],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

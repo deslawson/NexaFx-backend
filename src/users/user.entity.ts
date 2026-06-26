@@ -46,9 +46,9 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   lastName: string | null;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   @Exclude({ toPlainOnly: true })
-  password: string;
+  password: string | null;
 
   @Column({ type: 'varchar', length: 255, select: false })
   @Exclude({ toPlainOnly: true })

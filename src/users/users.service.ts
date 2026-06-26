@@ -21,6 +21,7 @@ import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { RateLimitConfig } from './rate-limit-config.entity';
 import { ThrottlerStorageService } from '@nestjs/throttler';
 import { NotificationPreferenceService } from '../notifications/services/notification-preference.service';
+import { RedisService } from '../common/services/redis.service';
 
 interface WalletBalancesCacheEntry {
   expiresAt: number;
@@ -45,6 +46,7 @@ export class UsersService {
     private readonly exchangeRatesService: ExchangeRatesService,
     private readonly throttlerStorageService: ThrottlerStorageService,
     private readonly notificationPreferenceService: NotificationPreferenceService,
+    private readonly redisService: RedisService,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
@@ -133,6 +135,7 @@ export class UsersService {
 
     const savedUser = await this.userRepository.save(user);
     await this.notificationPreferenceService.createDefaults(savedUser.id);
+    await this.redisService.del('admin_stats');
 
     const {
       password: _,

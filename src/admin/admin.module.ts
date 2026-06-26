@@ -11,6 +11,7 @@ import { TransactionLimitsModule } from '../transactions/transaction-limits.modu
 import { KycRecord } from '../kyc/entities/kyc.entity';
 import { RateAlert } from '../rate-alerts/entities/rate-alert.entity';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
@@ -23,4 +24,4 @@ import { AuditLog } from '../audit-logs/entities/audit-log.entity';
   controllers: [AdminController],
   providers: [AdminService],
 })
-export class AdminModule {}
+export class AdminModule { }

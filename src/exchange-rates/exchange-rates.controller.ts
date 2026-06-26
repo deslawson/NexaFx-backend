@@ -2,11 +2,35 @@ import { Controller, Get, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/
 import { ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { ExchangeRatesService, ExchangeRateResponseDto } from './exchange-rates.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrenciesService } from '../currencies/currencies.service';
+import { RedisService } from '../common/services/redis.service';
 
 @ApiTags('Exchange Rates')
 @Controller('exchange-rates')
 export class ExchangeRatesController {
-  constructor(private readonly exchangeRatesService: ExchangeRatesService) {}
+  constructor(
+    private readonly exchangeRatesService: ExchangeRatesService,
+    private readonly currenciesService: CurrenciesService,
+    private readonly redisService: RedisService,
+  ) {}
+
+  @Public()
+  @Get('currencies')
+  @ApiOperation({ summary: 'Get all active currencies' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all active currencies',
+  })
+  async getCurrencies() {
+    const cacheKey = 'exchange_rates_currencies';
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const currencies = await this.currenciesService.findAll(true);
+    await this.redisService.set(cacheKey, currencies, 3600); // 1h TTL
+    return currencies;
+  }
 
   @Public()
   @Get()

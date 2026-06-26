@@ -84,7 +84,7 @@ export class UsersService {
 
   async createUser(params: {
     email: string;
-    password: string;
+    password?: string;
     firstName?: string;
     lastName?: string;
     phone?: string;
@@ -110,8 +110,11 @@ export class UsersService {
       }
     }
 
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(params.password, saltRounds);
+    let hashedPassword: string | null = null;
+    if (params.password) {
+      const saltRounds = 12;
+      hashedPassword = await bcrypt.hash(params.password, saltRounds);
+    }
 
     const user = this.userRepository.create({
       email: normalizedEmail,

@@ -1,16 +1,25 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   HttpCode,
   HttpStatus,
   Request,
   Req,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
-import { Audit } from '../common/decorators/audit.decorator';
+import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
 import { VerifyTwoFactorDto } from './dto/verify-2fa.dto';
@@ -21,15 +30,16 @@ import { VerifySignupOtpDto } from './dto/verify-signup-otp.dto';
 import { VerifySignupResponseDto } from './dto/signup-response.dto';
 import { VerifyLoginOtpResponseDto } from './dto/signup-response.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UnlinkOauthDto } from './dto/unlink-oauth.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import { Throttle } from '@nestjs/throttler';
-// import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    // private readonly configService: ConfigService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Public()
@@ -61,7 +71,6 @@ export class AuthController {
   @Public()
   @Post('verify-login-otp')
   @HttpCode(HttpStatus.OK)
-  @Audit('user.login')
   @ApiOperation({ summary: 'Verify login OTP and receive access tokens' })
   @ApiBody({ type: VerifyLoginOtpDto })
   @ApiResponse({
@@ -79,7 +88,6 @@ export class AuthController {
   @Public()
   @Post('verify-2fa')
   @HttpCode(HttpStatus.OK)
-  @Audit('user.login')
   @ApiOperation({
     summary: 'Verify authenticator app TOTP and receive access tokens',
   })
@@ -212,7 +220,6 @@ export class AuthController {
   })
   @Post('signup')
   @HttpCode(HttpStatus.OK)
-  @Audit('user.register')
   @ApiOperation({ summary: 'Register a new user account' })
   @ApiBody({ type: SignupDto })
   @ApiResponse({
@@ -272,7 +279,6 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @Audit('user.logout')
   @ApiOperation({ summary: 'Logout current session' })
   @ApiResponse({
     status: 200,
@@ -296,7 +302,6 @@ export class AuthController {
 
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
-  @Audit('user.logout')
   @ApiOperation({ summary: 'Logout from all devices' })
   @ApiResponse({
     status: 200,
@@ -315,5 +320,104 @@ export class AuthController {
     const userAgent = req.get('User-Agent');
 
     return this.authService.logoutAllDevices(userId, ipAddress, userAgent);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Redirect to Google OAuth consent screen' })
+  async googleAuth() {}
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth callback handler' })
+  async googleAuthCallback(@Req() req: any, @Res() res: Response) {
+    const result = req.user;
+    if (result?.error) {
+      return res.redirect(
+        this.configService.get<string>(
+          'OAUTH_FAILURE_REDIRECT',
+          'http://localhost:3001/login?error=oauth_failed',
+        ),
+      );
+    }
+
+    const tokens = await this.authService.issueFullAccessToken(result.user.id);
+    const redirectUrl = new URL(
+      this.configService.get<string>(
+        'OAUTH_SUCCESS_REDIRECT',
+        'http://localhost:3001/auth/callback',
+      ),
+    );
+    redirectUrl.searchParams.set('accessToken', tokens.accessToken);
+    redirectUrl.searchParams.set('refreshToken', tokens.refreshToken);
+    redirectUrl.searchParams.set('expiresIn', String(tokens.expiresIn));
+    redirectUrl.searchParams.set('isNew', String(result.isNew));
+
+    return res.redirect(redirectUrl.toString());
+  }
+
+  @Public()
+  @Get('github')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'Redirect to GitHub OAuth consent screen' })
+  async githubAuth() {}
+
+  @Public()
+  @Get('github/callback')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'GitHub OAuth callback handler' })
+  async githubAuthCallback(@Req() req: any, @Res() res: Response) {
+    const result = req.user;
+    if (result?.error) {
+      return res.redirect(
+        this.configService.get<string>(
+          'OAUTH_FAILURE_REDIRECT',
+          'http://localhost:3001/login?error=oauth_failed',
+        ),
+      );
+    }
+
+    const tokens = await this.authService.issueFullAccessToken(result.user.id);
+    const redirectUrl = new URL(
+      this.configService.get<string>(
+        'OAUTH_SUCCESS_REDIRECT',
+        'http://localhost:3001/auth/callback',
+      ),
+    );
+    redirectUrl.searchParams.set('accessToken', tokens.accessToken);
+    redirectUrl.searchParams.set('refreshToken', tokens.refreshToken);
+    redirectUrl.searchParams.set('expiresIn', String(tokens.expiresIn));
+    redirectUrl.searchParams.set('isNew', String(result.isNew));
+
+    return res.redirect(redirectUrl.toString());
+  }
+
+  @Post('oauth/unlink')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlink an OAuth provider from your account' })
+  @ApiBody({ type: UnlinkOauthDto })
+  @ApiResponse({ status: 200, description: 'OAuth account unlinked' })
+  @ApiResponse({ status: 422, description: 'Cannot unlink — no password set' })
+  async unlinkOauth(@Req() req: any, @Body() dto: UnlinkOauthDto) {
+    const userId = req.user.userId;
+    await this.authService.unlinkOAuth(userId, dto.provider);
+    return { message: `${dto.provider} account unlinked successfully` };
+  }
+
+  @Post('set-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set a password for OAuth-only accounts' })
+  @ApiBody({ type: SetPasswordDto })
+  @ApiResponse({ status: 200, description: 'Password set successfully' })
+  @ApiResponse({ status: 400, description: 'User already has a password' })
+  async setPassword(@Req() req: any, @Body() dto: SetPasswordDto) {
+    const userId = req.user.userId;
+    await this.authService.setPassword(userId, dto.newPassword);
+    return {
+      message:
+        'Password set successfully. You can now log in with your email and password.',
+    };
   }
 }

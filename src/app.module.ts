@@ -11,6 +11,7 @@ import { CurrenciesModule } from './currencies/currencies.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { PlanThrottlerGuard } from './common/guards/plan-throttler.guard';
 import { HealthModule } from './health/health.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
@@ -127,6 +128,14 @@ import { StellarSep24AnchorModule } from './stellar-sep24-anchor/stellar-sep24-a
     },
     {
       provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PlanThrottlerGuard,
+    },
+  ],
+  providers: [],
       useClass: PlanThrottlerGuard,
     },
   ],

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { I18nModule, AcceptLanguageResolver } from 'nestjs-i18n';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { join } from 'path';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CurrenciesModule } from './currencies/currencies.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
@@ -70,6 +71,18 @@ import { VaultsModule } from './vaults/vaults.module';
       ],
       inject: [ConfigService],
     }),
+    I18nModule.forRootAsync({
+      useFactory: () => ({
+        fallbackLanguage: 'en',
+        loaderOptions: {
+          path: join(__dirname, '/i18n/'),
+          watch: true,
+        },
+      }),
+      resolvers: [
+        AcceptLanguageResolver,
+      ],
+    }),
     CommonModule,
     AuthModule,
     CurrenciesModule,
@@ -104,7 +117,6 @@ import { VaultsModule } from './vaults/vaults.module';
   ],
   controllers: [AppController],
   providers: [
-    AppService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

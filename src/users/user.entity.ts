@@ -136,6 +136,9 @@ export class User {
   })
   plan: UserPlan;
 
+  @Column({ type: 'varchar', length: 10, default: 'en' })
+  preferredLanguage: string;
+
   @Column({ type: 'timestamp with time zone', nullable: true })
   balanceLastSyncedAt: Date | null;
 

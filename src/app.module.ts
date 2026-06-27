@@ -99,6 +99,7 @@ import { VaultsModule } from './vaults/vaults.module';
     WalletsModule,
     LedgerModule,
     UsersModule,
+    CardsModule,
     VaultsModule,
   ],
   controllers: [AppController],

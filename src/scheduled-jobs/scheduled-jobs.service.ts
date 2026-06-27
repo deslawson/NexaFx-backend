@@ -847,6 +847,8 @@ export class ScheduledJobsService {
         );
     }
   }
+
+  /**
    * Daily loan repayment processing — auto-debits scheduled repayments and
    * applies overdue penalties. Runs at midnight every day.
    */

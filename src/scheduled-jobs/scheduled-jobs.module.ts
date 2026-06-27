@@ -14,7 +14,7 @@ import { DaoModule } from '../dao/dao.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
-import { AnalyticsModule } from '../analytics/analytics.module';
+import { VaultsModule } from '../vaults/vaults.module';
 
 @Module({
   imports: [
@@ -29,7 +29,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     LedgerModule,
     WebhooksModule,
     AuditLogsModule,
-    AnalyticsModule,
+    VaultsModule,
   ],
   providers: [ScheduledJobsService],
   exports: [ScheduledJobsService],

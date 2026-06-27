@@ -14,6 +14,9 @@ import { DaoModule } from '../dao/dao.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
+import { SanctionsModule } from '../sanctions/sanctions.module';
+import { LoansModule } from '../loans/loans.module';
 
 @Module({
   imports: [
@@ -28,6 +31,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     LedgerModule,
     WebhooksModule,
     AuditLogsModule,
+    AnalyticsModule,
+    SanctionsModule,
+    LoansModule,
   ],
   providers: [ScheduledJobsService],
   exports: [ScheduledJobsService],

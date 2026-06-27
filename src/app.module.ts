@@ -31,10 +31,13 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { GatewaysModule } from './gateways/gateways.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WalletsModule } from './wallets/wallets.module';
+import { EscrowModule } from './escrow/escrow.module';
 import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
-import { CardsModule } from './cards/cards.module';
+import { OrganisationsModule } from './organisations/organisations.module';
+import { SanctionsModule } from './sanctions/sanctions.module';
+import { LoansModule } from './loans/loans.module';
 
 @Module({
   imports: [
@@ -90,6 +93,7 @@ import { CardsModule } from './cards/cards.module';
     RateAlertsModule,
     AdminModule,
     SuperAdminModule,
+    EscrowModule,
     // DAO module provides Stellar Soroban contract interaction for reward distribution
     DaoModule,
     GraphQLApiModule,

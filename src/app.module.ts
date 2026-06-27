@@ -36,6 +36,7 @@ import { EscrowModule } from './escrow/escrow.module';
 import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
+import { DisputesModule } from './disputes/disputes.module';
 import { VaultsModule } from './vaults/vaults.module';
 
 @Module({
@@ -112,6 +113,7 @@ import { VaultsModule } from './vaults/vaults.module';
     WalletsModule,
     LedgerModule,
     UsersModule,
+    DisputesModule,
     CardsModule,
     VaultsModule,
   ],

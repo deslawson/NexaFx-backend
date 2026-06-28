@@ -38,6 +38,7 @@ import { RateAlertsModule } from './rate-alerts/rate-alerts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { UsersModule } from './users/users.module';
 import { DisputesModule } from './disputes/disputes.module';
+import { CardsModule } from './cards/cards.module';
 import { VaultsModule } from './vaults/vaults.module';
 import { StellarSep24AnchorModule } from './stellar-sep24-anchor/stellar-sep24-anchor.module';
 
@@ -70,7 +71,7 @@ import { StellarSep24AnchorModule } from './stellar-sep24-anchor/stellar-sep24-a
         {
           ttl: (configService.get<number>('THROTTLE_TTL') ?? 60) * 1000,
           limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
-        },    StellarSep24AnchorModule,
+        },
 
       ],
       inject: [ConfigService],
@@ -119,6 +120,7 @@ import { StellarSep24AnchorModule } from './stellar-sep24-anchor/stellar-sep24-a
     DisputesModule,
     CardsModule,
     VaultsModule,
+    StellarSep24AnchorModule,
   ],
   controllers: [AppController],
   providers: [
@@ -132,10 +134,6 @@ import { StellarSep24AnchorModule } from './stellar-sep24-anchor/stellar-sep24-a
     },
     {
       provide: APP_GUARD,
-      useClass: PlanThrottlerGuard,
-    },
-  ],
-  providers: [],
       useClass: PlanThrottlerGuard,
     },
   ],

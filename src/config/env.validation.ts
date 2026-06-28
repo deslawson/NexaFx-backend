@@ -17,4 +17,5 @@ export const envValidationSchema = Joi.object({
   MAILGUN_DOMAIN: Joi.string().optional(),
   MAILGUN_FROM_EMAIL: Joi.string().optional(),
   MAILGUN_FROM_NAME: Joi.string().optional(),
+  VAULT_INTEREST_RATE: Joi.number().min(0).max(1).default(0.05),
 });
